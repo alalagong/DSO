@@ -1,3 +1,11 @@
+# DSO commented by gong
+
+please checkout branch
+~~~shell 
+git checkout comment
+~~~
+
+---
 # DSO: Direct Sparse Odometry
 
 For more information see
