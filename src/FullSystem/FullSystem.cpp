@@ -58,25 +58,33 @@
 
 namespace dso
 {
+// Hessian矩阵计数, 有点像 shared_ptr
 int FrameHessian::instanceCounter=0;
 int PointHessian::instanceCounter=0;
 int CalibHessian::instanceCounter=0;
 
 
-
+/********************************
+ * @ function: 构造函数
+ * 
+ * @ param: 
+ * 
+ * @ note:
+ *******************************/
 FullSystem::FullSystem()
 {
 
 	int retstat =0;
 	if(setting_logStuff)
 	{
-
+		//shell命令删除旧的文件夹, 创建新的
 		retstat += system("rm -rf logs");
 		retstat += system("mkdir logs");
 
 		retstat += system("rm -rf mats");
 		retstat += system("mkdir mats");
 
+		// 打开读写log文件
 		calibLog = new std::ofstream();
 		calibLog->open("logs/calibLog.txt", std::ios::trunc | std::ios::out);
 		calibLog->precision(12);
@@ -126,7 +134,7 @@ FullSystem::FullSystem()
 		calibLog=0;
 	}
 
-	assert(retstat!=293847);
+	assert(retstat!=293847); // shell正常执行结束返回这么个值,填充8~15位bit, 有趣
 
 
 
@@ -147,7 +155,7 @@ FullSystem::FullSystem()
 	statistics_numMargResFwd = 0;
 	statistics_numMargResBwd = 0;
 
-	lastCoarseRMSE.setConstant(100);
+	lastCoarseRMSE.setConstant(100); //都=100
 
 	currentMinActDist=2;
 	initialized=false;
@@ -179,6 +187,7 @@ FullSystem::~FullSystem()
 {
 	blockUntilMappingIsFinished();
 
+	// 删除new的ofstream
 	if(setting_logStuff)
 	{
 		calibLog->close(); delete calibLog;
@@ -798,10 +807,17 @@ void FullSystem::flagPointsForRemoval()
 
 }
 
-
+/********************************
+ * @ function:
+ * 
+ * @ param: 	image		标定后的辐照度和曝光时间
+ * 				id			
+ * 
+ * @ note: start from here
+ *******************************/
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 {
-
+	//[ ***step 1*** ] track线程锁
     if(isLost) return;
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 

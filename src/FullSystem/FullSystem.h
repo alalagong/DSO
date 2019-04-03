@@ -61,12 +61,14 @@ class CoarseDistanceMap;
 
 class EnergyFunctional;
 
+//* 删除第i个元素
 template<typename T> inline void deleteOut(std::vector<T*> &v, const int i)
 {
-	delete v[i];
-	v[i] = v.back();
-	v.pop_back();
+	delete v[i];		//删除第i个元素指向的内存
+	v[i] = v.back();	//把最后一个拿来填i
+	v.pop_back();		//弹出最后一个
 }
+//* 删除元素i
 template<typename T> inline void deleteOutPt(std::vector<T*> &v, const T* i)
 {
 	delete i;
@@ -78,6 +80,7 @@ template<typename T> inline void deleteOutPt(std::vector<T*> &v, const T* i)
 			v.pop_back();
 		}
 }
+//* 删除第i个元素, 后面按顺序补上. 针对有顺序序列
 template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const int i)
 {
 	delete v[i];
@@ -85,6 +88,7 @@ template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const int i)
 		v[k-1] = v[k];
 	v.pop_back();
 }
+//* 针对有序序列, 删除其中element的元素
 template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const T* element)
 {
 	int i=-1;
@@ -105,7 +109,7 @@ template<typename T> inline void deleteOutOrder(std::vector<T*> &v, const T* ele
 	delete element;
 }
 
-
+//* 检查矩阵中是否有无穷元素,输出msg和该矩阵
 inline bool eigenTestNan(const MatXX &m, std::string msg)
 {
 	bool foundNan = false;

@@ -161,7 +161,14 @@ typedef Eigen::Matrix<double,14,1> Vec14;
 
 
 
-
+/********************************
+ * @ function: 光度仿射变换, 来建模曝光时间
+ * 
+ * @ param: 
+ * 
+ * @ note:  曝光时间未知: lambda_a = lambda_b = 0 t = 1 
+ * @ 		曝光时间已知: a = b = 0 
+ *******************************/
 // transforms points from one frame to another.
 struct AffLight
 {
@@ -169,17 +176,29 @@ struct AffLight
 	AffLight() : a(0), b(0) {};
 
 	// Affine Parameters:
-	double a,b;	// I_frame = exp(a)*I_global + b. // I_global = exp(-a)*(I_frame - b).
-
+	//!  辐照度(B) I_frame = exp(a)*I_global + b. 
+	//! 光度矫正后 I_global = exp(-a)*(I_frame - b).
+	double a,b;	
+	
+	/********************************
+	 * @ function: 把光度仿射变换转化为, 能量函数中的整体光度仿射系数
+	 * @
+	 * @ param: 	exposureF		参考帧曝光时间
+	 * @ 			exposureT		目标帧曝光时间
+	 * @			g2F				参考帧光度仿射系数
+	 * @			g2T				目标帧光度仿射系数
+	 * @ note:	注意这里面的a,b之间的差别
+	 *******************************/	
 	static Vec2 fromToVecExposure(float exposureF, float exposureT, AffLight g2F, AffLight g2T)
 	{
+		// 没有曝光时间标定, 置1
 		if(exposureF==0 || exposureT==0)
 		{
 			exposureT = exposureF = 1;
 			//printf("got exposure value of 0! please choose the correct model.\n");
 			//assert(setting_brightnessTransferFunc < 2);
 		}
-
+		// 论文公式(4), 光度系数放一起
 		double a = exp(g2T.a-g2F.a) * exposureT / exposureF;
 		double b = g2T.b - a*g2F.b;
 		return Vec2(a,b);

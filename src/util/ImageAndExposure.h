@@ -30,7 +30,7 @@
 namespace dso
 {
 
-
+//* 辐照度值B和曝光时间t
 class ImageAndExposure
 {
 public:
@@ -39,21 +39,22 @@ public:
 	int w,h;				// width and height;
 	double timestamp;
 	float exposure_time;	// exposure time in ms.
+	//! 论文中曝光时间t * 辐照度B
 	inline ImageAndExposure(int w_, int h_, double timestamp_=0) : w(w_), h(h_), timestamp(timestamp_)
 	{
-		image = new float[w*h];
+		image = new float[w*h]; //这表示图像,666, 标定后的辐照度
 		exposure_time=1;
 	}
 	inline ~ImageAndExposure()
 	{
 		delete[] image;
 	}
-
+	// 曝光时间赋值给other
 	inline void copyMetaTo(ImageAndExposure &other)
 	{
 		other.exposure_time = exposure_time;
 	}
-
+	// 深度拷贝
 	inline ImageAndExposure* getDeepCopy()
 	{
 		ImageAndExposure* img = new ImageAndExposure(w,h,timestamp);

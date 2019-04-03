@@ -39,13 +39,15 @@
 namespace dso
 {
 
-
+//* 求得两个参考帧之间的光度仿射变换系数
+// 设from是 i->j(ref->tar);  to是 k->j; 则结果是 i->k 的变换系数.
 inline Vec2 affFromTo(const Vec2 &from, const Vec2 &to)	// contains affine parameters as XtoWorld.
 {
 	return Vec2(from[0] / to[0], (from[1] - to[1]) / to[0]);
 }
 
 
+//提前声明下
 struct FrameHessian;
 struct PointHessian;
 
@@ -55,15 +57,17 @@ class FrameShell;
 class EFFrame;
 class EFPoint;
 
-#define SCALE_IDEPTH 1.0f		// scales internal value to idepth.
-#define SCALE_XI_ROT 1.0f
-#define SCALE_XI_TRANS 0.5f
-#define SCALE_F 50.0f
-#define SCALE_C 50.0f
-#define SCALE_W 1.0f
-#define SCALE_A 10.0f
-#define SCALE_B 1000.0f
+//? 这是干什么用的? 是为了求解时候的数值稳定? 
+#define SCALE_IDEPTH 1.0f			//!< 逆深度的比例系数  // scales internal value to idepth.
+#define SCALE_XI_ROT 1.0f			//!< 旋转量(so3)的比例系数
+#define SCALE_XI_TRANS 0.5f			//!< 平移量的比例系数, 尺度?
+#define SCALE_F 50.0f   			//!< 相机焦距的比例系数
+#define SCALE_C 50.0f				//!< 相机光心偏移的比例系数
+#define SCALE_W 1.0f				//!< 不知道...
+#define SCALE_A 10.0f				//!< 光度仿射系数a的比例系数
+#define SCALE_B 1000.0f				//!< 光度仿射系数b的比例系数
 
+//上面的逆
 #define SCALE_IDEPTH_INVERSE (1.0f / SCALE_IDEPTH)
 #define SCALE_XI_ROT_INVERSE (1.0f / SCALE_XI_ROT)
 #define SCALE_XI_TRANS_INVERSE (1.0f / SCALE_XI_TRANS)
@@ -73,7 +77,7 @@ class EFPoint;
 #define SCALE_A_INVERSE (1.0f / SCALE_A)
 #define SCALE_B_INVERSE (1.0f / SCALE_B)
 
-
+//TODO 提前计算的一些数? 还没没看到实现
 struct FrameFramePrecalc
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -110,15 +114,16 @@ struct FrameFramePrecalc
 struct FrameHessian
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
-	EFFrame* efFrame;
+	EFFrame* efFrame;		//!< 帧的能量函数
 
 	// constant info & pre-calculated values
 	//DepthImageWrap* frame;
-	FrameShell* shell;
+	FrameShell* shell;		//!< 帧的"壳", 保存一些不变的,要留下来的量
 
-	Eigen::Vector3f* dI;				 // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
-	Eigen::Vector3f* dIp[PYR_LEVELS];	 // coarse tracking / coarse initializer. NAN in [0] only.
-	float* absSquaredGrad[PYR_LEVELS];  // only used for pixel select (histograms etc.). no NAN.
+	//* 图像导数[0]:辐照度  [1]x方向导数  [2]y方向导数
+	Eigen::Vector3f* dI;				//!< 图像导数  // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
+	Eigen::Vector3f* dIp[PYR_LEVELS];	//!< 各金字塔层的图像导数  // coarse tracking / coarse initializer. NAN in [0] only.
+	float* absSquaredGrad[PYR_LEVELS];  //!< x,y 方向梯度的平方和 // only used for pixel select (histograms etc.). no NAN.
 
 
 
@@ -126,56 +131,58 @@ struct FrameHessian
 
 
 	int frameID;						// incremental ID for keyframes only!
-	static int instanceCounter;
+	static int instanceCounter;		//!< 计数器
 	int idx;
 
 	// Photometric Calibration Stuff
-	float frameEnergyTH;	// set dynamically depending on tracking residual
+	float frameEnergyTH;	//!< 阈值 // set dynamically depending on tracking residual
 	float ab_exposure;
 
 	bool flaggedForMarginalization;
 
-	std::vector<PointHessian*> pointHessians;				// contains all ACTIVE points.
-	std::vector<PointHessian*> pointHessiansMarginalized;	// contains all MARGINALIZED points (= fully marginalized, usually because point went OOB.)
-	std::vector<PointHessian*> pointHessiansOut;		// contains all OUTLIER points (= discarded.).
-	std::vector<ImmaturePoint*> immaturePoints;		// contains all OUTLIER points (= discarded.).
+	std::vector<PointHessian*> pointHessians;				//!< contains all ACTIVE points.
+	std::vector<PointHessian*> pointHessiansMarginalized;	//!< contains all MARGINALIZED points (= fully marginalized, usually because point went OOB.)
+	std::vector<PointHessian*> pointHessiansOut;			//!< contains all OUTLIER points (= discarded.).
+	std::vector<ImmaturePoint*> immaturePoints;				//!< contains all OUTLIER points (= discarded.).
 
-
+	//* 零空间, 好奇怎么求???
 	Mat66 nullspaces_pose;
 	Mat42 nullspaces_affine;
 	Vec6 nullspaces_scale;
 
 	// variable info.
-	SE3 worldToCam_evalPT;
-	Vec10 state_zero;
-	Vec10 state_scaled;
-	Vec10 state;	// [0-5: worldToCam-leftEps. 6-7: a,b]
-	Vec10 step;
-	Vec10 step_backup;
-	Vec10 state_backup;
+	SE3 worldToCam_evalPT;		//!< 待估计的相机位姿
+	// [0-5: 位姿左乘小量. 6-7: a,b 光度仿射系数]
+	Vec10 state_zero;   		//!< 固定的线性化点的状态增量, 为了计算进行缩放
+	Vec10 state_scaled;			//!< 乘上比例系数的状态增量, 这个是真正求的值!!!
+	Vec10 state;				//!< 计算的状态增量
+	Vec10 step;					//!< 
+	Vec10 step_backup;			//!<
+	Vec10 state_backup;			//!<
 
-
+	//内联提高效率, 返回上面的值
     EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const {return worldToCam_evalPT;}
     EIGEN_STRONG_INLINE const Vec10 &get_state_zero() const {return state_zero;}
     EIGEN_STRONG_INLINE const Vec10 &get_state() const {return state;}
     EIGEN_STRONG_INLINE const Vec10 &get_state_scaled() const {return state_scaled;}
-    EIGEN_STRONG_INLINE const Vec10 get_state_minus_stateZero() const {return get_state() - get_state_zero();}
+    EIGEN_STRONG_INLINE const Vec10 get_state_minus_stateZero() const {return get_state() - get_state_zero();} //x小量可以直接减
 
 
 	// precalc values
-	SE3 PRE_worldToCam;
+	SE3 PRE_worldToCam;			//!< 预计算的, 位姿状态增量更新到位姿上
 	SE3 PRE_camToWorld;
 	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
-	MinimalImageB3* debugImage;
+	MinimalImageB3* debugImage;	//!< 小图???
 
 
-    inline Vec6 w2c_leftEps() const {return get_state_scaled().head<6>();}
-    inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);}
-    inline AffLight aff_g2l_0() const {return AffLight(get_state_zero()[6]*SCALE_A, get_state_zero()[7]*SCALE_B);}
+    inline Vec6 w2c_leftEps() const {return get_state_scaled().head<6>();}  //* 返回位姿状态增量
+    inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);} //* 返回光度仿射系数增量
+    inline AffLight aff_g2l_0() const {return AffLight(get_state_zero()[6]*SCALE_A, get_state_zero()[7]*SCALE_B);} //* 返回线性化点处的仿射系数增量
 
 
-
+	//* 设置FEJ点状态增量
 	void setStateZero(const Vec10 &state_zero);
+	//* 设置增量, 同时复制state和state_scale
 	inline void setState(const Vec10 &state)
 	{
 
@@ -186,11 +193,12 @@ struct FrameHessian
 		state_scaled[7] = SCALE_B * state[7];
 		state_scaled[8] = SCALE_A * state[8];
 		state_scaled[9] = SCALE_B * state[9];
-
+		//位姿更新
 		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
+	//* 设置增量, 传入state_scaled
 	inline void setStateScaled(const Vec10 &state_scaled)
 	{
 
@@ -206,26 +214,28 @@ struct FrameHessian
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
+	//* 设置待估计位姿, 和状态增量, 同时设置了FEJ点
 	inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
 	{
 
 		this->worldToCam_evalPT = worldToCam_evalPT;
 		setState(state);
-		setStateZero(state);
+		setStateZero(state); 
 	};
 
 
-
+	//* 设置待估计位姿, 光度仿射系数, FEJ点
 	inline void setEvalPT_scaled(const SE3 &worldToCam_evalPT, const AffLight &aff_g2l)
 	{
 		Vec10 initial_state = Vec10::Zero();
-		initial_state[6] = aff_g2l.a;
+		initial_state[6] = aff_g2l.a; //? 既然是增量, 怎么就直接复制变量?
 		initial_state[7] = aff_g2l.b;
 		this->worldToCam_evalPT = worldToCam_evalPT;
 		setStateScaled(initial_state);
 		setStateZero(this->get_state());
 	};
 
+	//* 释放该帧内存
 	void release();
 
 	inline ~FrameHessian()
@@ -256,24 +266,27 @@ struct FrameHessian
 		debugImage=0;
 	};
 
-
+	//* TODO
     void makeImages(float* color, CalibHessian* HCalib);
-
+	
+	//* 
 	inline Vec10 getPrior()
 	{
 		Vec10 p =  Vec10::Zero();
-		if(frameID==0)
+		
+		if(frameID==0)  //* 第一帧就用初始值做先验
 		{
 			p.head<3>() = Vec3::Constant(setting_initialTransPrior);
 			p.segment<3>(3) = Vec3::Constant(setting_initialRotPrior);
+			// 用位运算, 有点东西
 			if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) p.head<6>().setZero();
 
 			p[6] = setting_initialAffAPrior;
 			p[7] = setting_initialAffBPrior;
 		}
-		else
+		else //* 否则根据模式决定
 		{
-			if(setting_affineOptModeA < 0)
+			if(setting_affineOptModeA < 0) //* 小于零是固定的不优化
 				p[6] = setting_initialAffAPrior;
 			else
 				p[6] = setting_affineOptModeA;
@@ -283,6 +296,7 @@ struct FrameHessian
 			else
 				p[7] = setting_affineOptModeB;
 		}
+		//? 8,9是干嘛的呢???
 		p[8] = setting_initialAffAPrior;
 		p[9] = setting_initialAffBPrior;
 		return p;
