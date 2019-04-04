@@ -1,9 +1,6 @@
-# DSO commented by gong
+# DSO 注释版本
 
-please checkout branch
-~~~shell 
-git checkout comment
-~~~
+> by gong 
 
 ---
 # DSO: Direct Sparse Odometry

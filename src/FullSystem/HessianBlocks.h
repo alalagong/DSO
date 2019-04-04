@@ -266,7 +266,7 @@ struct FrameHessian
 		debugImage=0;
 	};
 
-	//* TODO
+	//TODO
     void makeImages(float* color, CalibHessian* HCalib);
 	
 	//* 
