@@ -86,20 +86,21 @@ struct FrameFramePrecalc
 	FrameHessian* host;	// defines row
 	FrameHessian* target;	// defines column
 
+	//? 实在不懂leftToleft_0这个名字怎么个含义
 	// precalc values
-	Mat33f PRE_RTll;
-	Mat33f PRE_KRKiTll;
-	Mat33f PRE_RKiTll;
-	Mat33f PRE_RTll_0;
+	Mat33f PRE_RTll; // target和host之间优化后旋转矩阵 R
+	Mat33f PRE_KRKiTll; // k*R*k_inv
+	Mat33f PRE_RKiTll;  // R*k_inv
+	Mat33f PRE_RTll_0; // target和host之间初始的旋转矩阵, 优化更新前
 
-	Vec2f PRE_aff_mode;
-	float PRE_b0_mode;
+	Vec2f PRE_aff_mode; // 能量函数对仿射系数处理后的, 总系数
+	float PRE_b0_mode; // host的光度仿射系数
 
-	Vec3f PRE_tTll;
-	Vec3f PRE_KtTll;
-	Vec3f PRE_tTll_0;
+	Vec3f PRE_tTll; // target和host之间优化后的平移 t
+	Vec3f PRE_KtTll; // K*t
+	Vec3f PRE_tTll_0; // target和host之间初始的平移, 优化更新前
 
-	float distanceLL;
+	float distanceLL; // 两帧间距离
 
 
     inline ~FrameFramePrecalc() {}
@@ -110,7 +111,7 @@ struct FrameFramePrecalc
 
 
 
-
+//* 相机位姿+相机光度Hessian
 struct FrameHessian
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -120,7 +121,7 @@ struct FrameHessian
 	//DepthImageWrap* frame;
 	FrameShell* shell;		//!< 帧的"壳", 保存一些不变的,要留下来的量
 
-	//* 图像导数[0]:辐照度  [1]x方向导数  [2]y方向导数
+	//* 图像导数[0]:辐照度  [1]:x方向导数  [2]:y方向导数
 	Eigen::Vector3f* dI;				//!< 图像导数  // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
 	Eigen::Vector3f* dIp[PYR_LEVELS];	//!< 各金字塔层的图像导数  // coarse tracking / coarse initializer. NAN in [0] only.
 	float* absSquaredGrad[PYR_LEVELS];  //!< x,y 方向梯度的平方和 // only used for pixel select (histograms etc.). no NAN.
@@ -255,7 +256,7 @@ struct FrameHessian
 	};
 	inline FrameHessian()
 	{
-		instanceCounter++;
+		instanceCounter++;  //! 若是发生拷贝, 就不会增加了
 		flaggedForMarginalization=false;
 		frameID = -1;
 		efFrame = 0;
@@ -266,10 +267,9 @@ struct FrameHessian
 		debugImage=0;
 	};
 
-	//TODO
     void makeImages(float* color, CalibHessian* HCalib);
 	
-	//* 
+	//* 获得先验， 怎么感觉除了第一帧没什么用
 	inline Vec10 getPrior()
 	{
 		Vec10 p =  Vec10::Zero();
@@ -310,26 +310,28 @@ struct FrameHessian
 
 };
 
+//* 相机内参Hessian, 响应函数
 struct CalibHessian
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	static int instanceCounter;
-
-	VecC value_zero;
-	VecC value_scaled;
-	VecCf value_scaledf;
-	VecCf value_scaledi;
-	VecC value;
-	VecC step;
-	VecC step_backup;
-	VecC value_backup;
-	VecC value_minus_value_zero;
+	// * 4×1的向量
+	VecC value_zero;				//!< FEJ固定点  			
+	VecC value_scaled;				//!< 乘以scale的内参
+	VecCf value_scaledf;			//!< float型的内参
+	VecCf value_scaledi;			//!< 逆, 应该是求导用为, 1/fx, 1/fy, -cx/fx, -cy/fy
+	VecC value;						//!< 没乘scale的
+	VecC step;						//!< 
+	VecC step_backup;				//!< 
+	VecC value_backup;				//!< 
+	VecC value_minus_value_zero;	//!< 减去线性化点
 
     inline ~CalibHessian() {instanceCounter--;}
 	inline CalibHessian()
 	{
 
 		VecC initial_value = VecC::Zero();
+		//* 初始化内参
 		initial_value[0] = fxG[0];
 		initial_value[1] = fyG[0];
 		initial_value[2] = cxG[0];
@@ -340,6 +342,7 @@ struct CalibHessian
 		value_minus_value_zero.setZero();
 
 		instanceCounter++;
+		//响应函数
 		for(int i=0;i<256;i++)
 			Binv[i] = B[i] = i;		// set gamma function to identity
 	};
@@ -356,10 +359,10 @@ struct CalibHessian
     inline float& cyli() {return value_scaledi[3];}
 
 
-
+	//* 通过value设置
 	inline void setValue(const VecC &value)
 	{
-		// [0-3: Kl, 4-7: Kr, 8-12: l2r]
+		// [0-3: Kl, 4-7: Kr, 8-12: l2r] what's this, stereo camera???
 		this->value = value;
 		value_scaled[0] = SCALE_F * value[0];
 		value_scaled[1] = SCALE_F * value[1];
@@ -373,7 +376,7 @@ struct CalibHessian
 		this->value_scaledi[3] = - this->value_scaledf[3] / this->value_scaledf[1];
 		this->value_minus_value_zero = this->value - this->value_zero;
 	};
-
+	//* 通过value_scaled赋值
 	inline void setValueScaled(const VecC &value_scaled)
 	{
 		this->value_scaled = value_scaled;
@@ -390,11 +393,11 @@ struct CalibHessian
 		this->value_scaledi[3] = - this->value_scaledf[3] / this->value_scaledf[1];
 	};
 
-
+	//* gamma函数, 相机的响应函数G和G^-1, 映射到0~255
 	float Binv[256];
 	float B[256];
 
-
+	//* 响应函数的导数
 	EIGEN_STRONG_INLINE float getBGradOnly(float color)
 	{
 		int c = color+0.5f;
@@ -402,7 +405,7 @@ struct CalibHessian
 		if(c>250) c=250;
 		return B[c+1]-B[c];
 	}
-
+	//* 响应函数逆的导数
 	EIGEN_STRONG_INLINE float getBInvGradOnly(float color)
 	{
 		int c = color+0.5f;
@@ -412,13 +415,13 @@ struct CalibHessian
 	}
 };
 
-
+//*
 // hessian component associated with one point.
 struct PointHessian
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	static int instanceCounter;
-	EFPoint* efPoint;
+	EFPoint* efPoint; 						//!< 点的能量函数
 
 	// static values
 	float color[MAX_RES_PER_POINT];			// colors in host frame
@@ -426,33 +429,33 @@ struct PointHessian
 
 
 
-	float u,v;
-	int idx;
-	float energyTH;
-	FrameHessian* host;
+	float u,v;							//!< 像素点的位置
+	int idx;							//!< 
+	float energyTH;						//!< 光度误差阈值
+	FrameHessian* host;					//!< 主帧
 	bool hasDepthPrior;
 
-	float my_type;
+	float my_type;//不同类型点, 显示用
 
-	float idepth_scaled;
-	float idepth_zero_scaled;
-	float idepth_zero;
-	float idepth;
+	float idepth_scaled;				//!< 点逆深度
+	float idepth_zero_scaled;			//!< 点的FEJ逆深度
+	float idepth_zero;					//!< 缩放了scale倍的固定线性化点逆深度
+	float idepth;						//!< 缩放scale倍的逆深度
 	float step;
 	float step_backup;
 	float idepth_backup;
 
 	float nullspaces_scale;
-	float idepth_hessian;
+	float idepth_hessian;				//!< 对应的hessian矩阵值
 	float maxRelBaseline;
 	int numGoodResiduals;
-
+	//? OOB: 应该是由于被边缘化帧上, 同时被最近帧看到的, 所以丢弃观测? OR out of border???
 	enum PtStatus {ACTIVE=0, INACTIVE, OUTLIER, OOB, MARGINALIZED};
 	PtStatus status;
 
     inline void setPointStatus(PtStatus s) {status=s;}
 
-
+	//* 各种设置逆深度
 	inline void setIdepth(float idepth) {
 		this->idepth = idepth;
 		this->idepth_scaled = SCALE_IDEPTH * idepth;
@@ -467,42 +470,43 @@ struct PointHessian
 		nullspaces_scale = -(idepth*1.001 - idepth/1.001)*500;
     }
 
-
+	//* 点的残差值
 	std::vector<PointFrameResidual*> residuals;					// only contains good residuals (not OOB and not OUTLIER). Arbitrary order.
 	std::pair<PointFrameResidual*, ResState> lastResiduals[2]; 	// contains information about residuals to the last two (!) frames. ([0] = latest, [1] = the one before).
 
 
 	void release();
+
 	PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hcalib);
     inline ~PointHessian() {assert(efPoint==0); release(); instanceCounter--;}
 
-
+	//TODO: condition here need to be rethink
 	inline bool isOOB(const std::vector<FrameHessian*>& toKeep, const std::vector<FrameHessian*>& toMarg) const
 	{
 
 		int visInToMarg = 0;
 		for(PointFrameResidual* r : residuals)
 		{
-			if(r->state_state != ResState::IN) continue;
+			if(r->state_state != ResState::IN) continue;  
 			for(FrameHessian* k : toMarg)
-				if(r->target == k) visInToMarg++;
+				if(r->target == k) visInToMarg++;  // 在要边缘化掉的帧被观测的数量
 		}
-		if((int)residuals.size() >= setting_minGoodActiveResForMarg &&
+		if((int)residuals.size() >= setting_minGoodActiveResForMarg &&  // 残差数大于一定数目
 				numGoodResiduals > setting_minGoodResForMarg+10 &&
-				(int)residuals.size()-visInToMarg < setting_minGoodActiveResForMarg)
+				(int)residuals.size()-visInToMarg < setting_minGoodActiveResForMarg) //剩余残差足够少
 			return true;
 
 
 
 
-
-		if(lastResiduals[0].second == ResState::OOB) return true;
-		if(residuals.size() < 2) return false;
-		if(lastResiduals[0].second == ResState::OUTLIER && lastResiduals[1].second == ResState::OUTLIER) return true;
+		// 或者满足以下条件,
+		if(lastResiduals[0].second == ResState::OOB) return true;   //上一帧是OOB
+		if(residuals.size() < 2) return false;	//观测较少不设置为OOB
+		if(lastResiduals[0].second == ResState::OUTLIER && lastResiduals[1].second == ResState::OUTLIER) return true; //前两帧都是外点
 		return false;
 	}
 
-
+	//内点条件
 	inline bool isInlierNew()
 	{
 		return (int)residuals.size() >= setting_minGoodActiveResForMarg

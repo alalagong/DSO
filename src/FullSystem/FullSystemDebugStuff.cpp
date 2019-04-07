@@ -276,13 +276,13 @@ namespace dso
 				{
 					if(ph==0) continue;
 					if(ph->my_type==0)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,255));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,255));//粉色
 					if(ph->my_type==1)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,0));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(255,0,0)); //蓝色
 					if(ph->my_type==2)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,0,255));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,0,255)); //红色
 					if(ph->my_type==3)
-						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,255,255));
+						img->setPixelCirc(ph->u+0.5f, ph->v+0.5f, Vec3b(0,255,255)); //黄色
 				}
 				for(PointHessian* ph : frameHessians[f]->pointHessiansMarginalized)
 				{

@@ -811,7 +811,7 @@ void FullSystem::flagPointsForRemoval()
  * @ function:
  * 
  * @ param: 	image		标定后的辐照度和曝光时间
- * 				id			
+ * @			id			
  * 
  * @ note: start from here
  *******************************/
@@ -822,6 +822,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	boost::unique_lock<boost::mutex> lock(trackMutex);
 
 
+	//[ ***step 2*** ] 创建FrameHessian和FrameShell, 并进行相应初始化, 并存储所有帧
 	// =========================== add into allFrameHistory =========================
 	FrameHessian* fh = new FrameHessian();
 	FrameShell* shell = new FrameShell();
@@ -833,7 +834,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	fh->shell = shell;
 	allFrameHistory.push_back(shell);
 
-
+	//[ ***step 3*** ] 得到曝光时间, 生成金字塔, 计算整个图像梯度
 	// =========================== make Images / derivatives etc. =========================
 	fh->ab_exposure = image->exposure_time;
     fh->makeImages(image->image, &Hcalib);

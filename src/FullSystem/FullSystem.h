@@ -158,8 +158,8 @@ public:
     std::vector<IOWrap::Output3DWrapper*> outputWrapper;
 
 	bool isLost;
-	bool initFailed;
-	bool initialized;
+	bool initFailed;        			
+	bool initialized;					//!< 是否完成初始化
 	bool linearizeOperation;
 
 

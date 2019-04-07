@@ -176,8 +176,8 @@ struct AffLight
 	AffLight() : a(0), b(0) {};
 
 	// Affine Parameters:
-	//!  辐照度(B) I_frame = exp(a)*I_global + b. 
-	//! 光度矫正后 I_global = exp(-a)*(I_frame - b).
+	//! 光度矫正后(tB) I_frame = exp(a)*I_global + b. 
+	//! 辐照度(B) I_global = exp(-a)*(I_frame - b).
 	double a,b;	
 	
 	/********************************

@@ -35,6 +35,7 @@ class FrameShell
 {
 public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
+	//? 两个ID有啥不同
 	int id; 			// INTERNAL ID, starting at zero.
 	int incoming_id;	// ID passed into DSO
 	double timestamp;		// timestamp passed into DSO.
