@@ -764,13 +764,14 @@ void CoarseInitializer::makeGradients(Eigen::Vector3f** data)
 		}
 	}
 }
+
 void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHessian)
 {
-
+//[ ***step 1*** ] 计算图像每层的内参
 	makeK(HCalib);
 	firstFrame = newFrameHessian;
 
-	PixelSelector sel(w[0],h[0]);
+	PixelSelector sel(w[0],h[0]); // 像素选择
 
 	float* statusMap = new float[w[0]*h[0]];
 	bool* statusMapB = new bool[w[0]*h[0]];
@@ -778,7 +779,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 	float densities[] = {0.03,0.05,0.15,0.5,1};
 	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
 	{
-		sel.currentPotential = 3;
+		sel.currentPotential = 3; //? 有什么用???
 		int npts;
 		if(lvl == 0)
 			npts = sel.makeMaps(firstFrame, statusMap,densities[lvl]*w[0]*h[0],1,false,2);
@@ -927,6 +928,7 @@ void CoarseInitializer::applyStep(int lvl)
 	std::swap<Vec10f*>(JbBuffer, JbBuffer_new);
 }
 
+//* 计算每个金字塔层的相机参数
 void CoarseInitializer::makeK(CalibHessian* HCalib)
 {
 	w[0] = wG[0];
@@ -936,17 +938,19 @@ void CoarseInitializer::makeK(CalibHessian* HCalib)
 	fy[0] = HCalib->fyl();
 	cx[0] = HCalib->cxl();
 	cy[0] = HCalib->cyl();
-
+	// 求各层的K参数
 	for (int level = 1; level < pyrLevelsUsed; ++ level)
 	{
+		
 		w[level] = w[0] >> level;
 		h[level] = h[0] >> level;
 		fx[level] = fx[level-1] * 0.5;
 		fy[level] = fy[level-1] * 0.5;
+		//* 0.5 offset 看README是设定0.5到1.5之间积分表示1的像素值？
 		cx[level] = (cx[0] + 0.5) / ((int)1<<level) - 0.5;
 		cy[level] = (cy[0] + 0.5) / ((int)1<<level) - 0.5;
 	}
-
+	// 求K_inverse参数
 	for (int level = 0; level < pyrLevelsUsed; ++ level)
 	{
 		K[level]  << fx[level], 0.0, cx[level], 0.0, fy[level], cy[level], 0.0, 0.0, 1.0;

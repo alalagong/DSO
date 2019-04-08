@@ -46,7 +46,7 @@ PixelSelector::PixelSelector(int w, int h)
 
 	currentPotential=3;
 
-
+	// 32*32个块进行计算阈值
 	gradHist = new int[100*(1+w/32)*(1+h/32)];
 	ths = new float[(w/32)*(h/32)+100];
 	thsSmoothed = new float[(w/32)*(h/32)+100];
@@ -139,6 +139,18 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 
 
 }
+/********************************
+ * @ function:
+ * 
+ * @ param: 	fh				帧Hessian数据结构
+ * @			map_out			选出的地图点
+ * @			density		 	每一金字塔层要的点数(密度)
+ * @			recursionsLeft	递归次数???
+ * @			plot			画图
+ * @			thFactor		阈值因子???
+ * @
+ * @ note:
+ *******************************/
 int PixelSelector::makeMaps(
 		const FrameHessian* const fh,
 		float* map_out, float density, int recursionsLeft, bool plot, float thFactor)

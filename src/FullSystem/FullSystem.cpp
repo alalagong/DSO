@@ -841,10 +841,11 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 
 
 
-
+	//[ ***step 4*** ] 进行初始化
 	if(!initialized)
 	{
 		// use initializer!
+		//[ ***step 4.1*** ] 加入第一帧
 		if(coarseInitializer->frameID<0)	// first frame set. fh is kept by coarseInitializer.
 		{
 
