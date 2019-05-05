@@ -776,7 +776,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 	float* statusMap = new float[w[0]*h[0]];
 	bool* statusMapB = new bool[w[0]*h[0]];
 
-	float densities[] = {0.03,0.05,0.15,0.5,1};
+	float densities[] = {0.03,0.05,0.15,0.5,1}; // 不同层取得点密度
 	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
 	{
 		sel.currentPotential = 3; //? 有什么用???

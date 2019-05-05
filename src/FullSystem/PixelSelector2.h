@@ -44,7 +44,7 @@ public:
 
 	PixelSelector(int w, int h);
 	~PixelSelector();
-	int currentPotential;
+	int currentPotential; 		//!< 
 
 
 	bool allowFast;
@@ -58,9 +58,9 @@ private:
 	unsigned char* randomPattern;
 
 
-	int* gradHist;
-	float* ths;
-	float* thsSmoothed;
+	int* gradHist;  			//!< 根号梯度平方和分布直方图, 0是所有像素个数
+	float* ths;					//!< ??
+	float* thsSmoothed;			//!< 平滑后的阈值
 	int thsStep;
 	const FrameHessian* gradHistFrame;
 };
