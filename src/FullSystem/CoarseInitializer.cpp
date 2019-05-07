@@ -779,26 +779,30 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 	float densities[] = {0.03,0.05,0.15,0.5,1}; // 不同层取得点密度
 	for(int lvl=0; lvl<pyrLevelsUsed; lvl++)
 	{
-		sel.currentPotential = 3; //? 有什么用???
-		int npts;
-		if(lvl == 0)
+//[ ***step 2*** ] 针对不同层数选择大梯度像素, 第0层比较复杂1d, 2d, 4d大小block来选择3个层次的像素
+		sel.currentPotential = 3; // 设置网格大小，3*3大小格
+		int npts; // 选择的像素数目
+		if(lvl == 0) // 第0层提取特征像素
 			npts = sel.makeMaps(firstFrame, statusMap,densities[lvl]*w[0]*h[0],1,false,2);
-		else
+		else  // 其它层则选出goodpoints
 			npts = makePixelStatus(firstFrame->dIp[lvl], statusMapB, w[lvl], h[lvl], densities[lvl]*w[0]*h[0]);
 
 
-
+		// 如果点非空, 则释放空间, 创建新的
 		if(points[lvl] != 0) delete[] points[lvl];
 		points[lvl] = new Pnt[npts];
 
 		// set idepth map to initially 1 everywhere.
-		int wl = w[lvl], hl = h[lvl];
-		Pnt* pl = points[lvl];
+		int wl = w[lvl], hl = h[lvl]; // 每一层的图像大小
+		Pnt* pl = points[lvl];  // 每一层上的点
 		int nl = 0;
+		// 要留出pattern的空间, 2 border
+//[ ***step 3*** ] 在选出的像素中, 添加点信息
 		for(int y=patternPadding+1;y<hl-patternPadding-2;y++)
 		for(int x=patternPadding+1;x<wl-patternPadding-2;x++)
 		{
 			//if(x==2) printf("y=%d!\n",y);
+			// 如果是被选中的像素
 			if((lvl!=0 && statusMapB[x+y*wl]) || (lvl==0 && statusMap[x+y*wl] != 0))
 			{
 				//assert(patternNum==9);
@@ -812,11 +816,12 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 				pl[nl].lastHessian_new=0;
 				pl[nl].my_type= (lvl!=0) ? 1 : statusMap[x+y*wl];
 
-				Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl];
+				Eigen::Vector3f* cpt = firstFrame->dIp[lvl] + x + y*w[lvl]; // 该像素梯度
 				float sumGrad2=0;
+				// 计算pattern内像素梯度和
 				for(int idx=0;idx<patternNum;idx++)
 				{
-					int dx = patternP[idx][0];
+					int dx = patternP[idx][0]; // pattern 的偏移
 					int dy = patternP[idx][1];
 					float absgrad = cpt[dx + dy*w[lvl]].tail<2>().squaredNorm();
 					sumGrad2 += absgrad;
@@ -825,7 +830,8 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 //				float gth = setting_outlierTH * (sqrtf(sumGrad2)+setting_outlierTHSumComponent);
 //				pl[nl].outlierTH = patternNum*gth*gth;
 //
-
+				//! 外点的阈值与pattern的大小有关, 一个像素是12*12
+				//? 这个阈值怎么确定的...
 				pl[nl].outlierTH = patternNum*setting_outlierTH;
 
 
@@ -836,7 +842,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 		}
 
 
-		numPoints[lvl]=nl;
+		numPoints[lvl]=nl; // 点的数目,  去掉了一些边界上的点
 	}
 	delete[] statusMap;
 	delete[] statusMapB;
@@ -968,17 +974,19 @@ void CoarseInitializer::makeK(CalibHessian* HCalib)
 void CoarseInitializer::makeNN()
 {
 	const float NNDistFactor=0.05;
-
+	// 第一个参数为distance, 第二个是datasetadaptor, 第三个是维数
 	typedef nanoflann::KDTreeSingleIndexAdaptor<
 			nanoflann::L2_Simple_Adaptor<float, FLANNPointcloud> ,
 			FLANNPointcloud,2> KDTree;
 
 	// build indices
-	FLANNPointcloud pcs[PYR_LEVELS];
-	KDTree* indexes[PYR_LEVELS];
+	FLANNPointcloud pcs[PYR_LEVELS]; // 每层建立一个点云
+	KDTree* indexes[PYR_LEVELS]; // 点云建立KDtree
+	//* 每层建立一个KDTree索引二维点云
 	for(int i=0;i<pyrLevelsUsed;i++)
 	{
-		pcs[i] = FLANNPointcloud(numPoints[i], points[i]);
+		pcs[i] = FLANNPointcloud(numPoints[i], points[i]); // 二维点点云
+		// 参数: 维度, 点数据, 叶节点中最大的点数(越大build快, query慢)
 		indexes[i] = new KDTree(2, pcs[i], nanoflann::KDTreeSingleIndexAdaptorParams(5) );
 		indexes[i]->buildIndex();
 	}
@@ -991,8 +999,9 @@ void CoarseInitializer::makeNN()
 		Pnt* pts = points[lvl];
 		int npts = numPoints[lvl];
 
-		int ret_index[nn];
-		float ret_dist[nn];
+		int ret_index[nn];  // 搜索到的临近点
+		float ret_dist[nn]; // 搜索到点的距离
+		// 搜索结果, 最近的nn个和1个
 		nanoflann::KNNResultSet<float, int, int> resultSet(nn);
 		nanoflann::KNNResultSet<float, int, int> resultSet1(1);
 
@@ -1000,35 +1009,38 @@ void CoarseInitializer::makeNN()
 		{
 			//resultSet.init(pts[i].neighbours, pts[i].neighboursDist );
 			resultSet.init(ret_index, ret_dist);
-			Vec2f pt = Vec2f(pts[i].u,pts[i].v);
+			Vec2f pt = Vec2f(pts[i].u,pts[i].v); // 当前点
+			// 使用建立的KDtree, 来查询最近邻
 			indexes[lvl]->findNeighbors(resultSet, (float*)&pt, nanoflann::SearchParams());
 			int myidx=0;
 			float sumDF = 0;
+			//* 给每个点的neighbours赋值
 			for(int k=0;k<nn;k++)
 			{
-				pts[i].neighbours[myidx]=ret_index[k];
-				float df = expf(-ret_dist[k]*NNDistFactor);
-				sumDF += df;
+				pts[i].neighbours[myidx]=ret_index[k]; // 最近的索引
+				float df = expf(-ret_dist[k]*NNDistFactor); // 距离使用指数形式
+				sumDF += df; // 距离和
 				pts[i].neighboursDist[myidx]=df;
 				assert(ret_index[k]>=0 && ret_index[k] < npts);
 				myidx++;
 			}
+			// 对距离进行归10化,,,,,
 			for(int k=0;k<nn;k++)
 				pts[i].neighboursDist[k] *= 10/sumDF;
 
-
+			//* 高一层的图像中找到该点的父节点
 			if(lvl < pyrLevelsUsed-1 )
 			{
 				resultSet1.init(ret_index, ret_dist);
-				pt = pt*0.5f-Vec2f(0.25f,0.25f);
+				pt = pt*0.5f-Vec2f(0.25f,0.25f); // 换算到高一层
 				indexes[lvl+1]->findNeighbors(resultSet1, (float*)&pt, nanoflann::SearchParams());
 
-				pts[i].parent = ret_index[0];
-				pts[i].parentDist = expf(-ret_dist[0]*NNDistFactor);
+				pts[i].parent = ret_index[0]; // 父节点
+				pts[i].parentDist = expf(-ret_dist[0]*NNDistFactor); // 到父节点的距离(在高层中)
 
 				assert(ret_index[0]>=0 && ret_index[0] < numPoints[lvl+1]);
 			}
-			else
+			else  // 最高层没有
 			{
 				pts[i].parent = -1;
 				pts[i].parentDist = -1;

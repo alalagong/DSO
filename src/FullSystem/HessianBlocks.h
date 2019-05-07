@@ -121,11 +121,11 @@ struct FrameHessian
 	//DepthImageWrap* frame;
 	FrameShell* shell;		//!< 帧的"壳", 保存一些不变的,要留下来的量
 
-	//* 图像导数[0]:辐照度  [1]:x方向导数  [2]:y方向导数
+	//* 图像导数[0]:辐照度  [1]:x方向导数  [2]:y方向导数, （指针表示图像）
 	Eigen::Vector3f* dI;				//!< 图像导数  // trace, fine tracking. Used for direction select (not for gradient histograms etc.)
 	Eigen::Vector3f* dIp[PYR_LEVELS];	//!< 各金字塔层的图像导数  // coarse tracking / coarse initializer. NAN in [0] only.
 	float* absSquaredGrad[PYR_LEVELS];  //!< x,y 方向梯度的平方和 // only used for pixel select (histograms etc.). no NAN.
-
+	
 
 
 

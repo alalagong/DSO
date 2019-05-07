@@ -85,7 +85,7 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 	int w = wG[0];
 	int h = hG[0];
 	
-	//!还是每个blocks大小为32*32, 不是论文里的32*32的格
+	//!还是每个blocks大小为32*32, 不是论文里的32*32个网格
 	int w32 = w/32;
 	int h32 = h/32;
 	thsStep = w32;
@@ -270,12 +270,12 @@ int PixelSelector::makeMaps(
 		}
 	}
 
-//	printf("PixelSelector: have %.2f%%, need %.2f%%. KEEPCURR with pot %d -> %d. Subsampled to %.2f%%\n",
-//			100*numHave/(float)(wG[0]*hG[0]),
-//			100*numWant/(float)(wG[0]*hG[0]),
-//			currentPotential,
-//			idealPotential,
-//			100*numHaveSub/(float)(wG[0]*hG[0]));
+	//	printf("PixelSelector: have %.2f%%, need %.2f%%. KEEPCURR with pot %d -> %d. Subsampled to %.2f%%\n",
+	//			100*numHave/(float)(wG[0]*hG[0]),
+	//			100*numWant/(float)(wG[0]*hG[0]),
+	//			currentPotential,
+	//			idealPotential,
+	//			100*numHaveSub/(float)(wG[0]*hG[0]));
 	currentPotential = idealPotential; //???
 
 	// 画出选择结果
@@ -470,7 +470,7 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 				if(bestIdx2>0)
 				{
 					map_out[bestIdx2] = 1;
-					//bug 这个好像没什么用...., 直接就continue了
+					//bug 这个好像没什么用...., 上面直接就continue了
 					bestVal3 = 1e10;  // 第0层找到了, 就不在高层找了 ,
 					n2++; // 计数
 				}

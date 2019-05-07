@@ -50,7 +50,7 @@ public:
 	// idepth / isgood / energy during optimization.
 	float idepth;
 	bool isGood;
-	Vec2f energy;		// (UenergyPhotometric, energyRegularizer)
+	Vec2f energy;		// (UenergyPhotometric, energyRegularizer)	
 	bool isGood_new;
 	float idepth_new;
 	Vec2f energy_new;
@@ -65,15 +65,15 @@ public:
 	float maxstep;
 
 	// idx (x+y*w) of closest point one pyramid level above.
-	int parent;
-	float parentDist;
+	int parent;		  			//!< 上一层中该点的父节点 (距离最近的)
+	float parentDist;			//!< 上一层中与父节点的距离
 
 	// idx (x+y*w) of up to 10 nearest points in pixel space.
-	int neighbours[10];
-	float neighboursDist[10];
+	int neighbours[10];			//!< 图像中离该点最近的10个点
+	float neighboursDist[10];   //!< 最近10个点的距离
 
-	float my_type;
-	float outlierTH;
+	float my_type; // 第0层提取是1, 2, 4, 对应d, 2d, 4d, 其它层是1
+	float outlierTH; // 外点阈值
 };
 
 class CoarseInitializer {
@@ -91,8 +91,8 @@ public:
 	bool fixAffine;
 	bool printDebug;
 
-	Pnt* points[PYR_LEVELS];
-	int numPoints[PYR_LEVELS];
+	Pnt* points[PYR_LEVELS]; 	// 每一层上的点类
+	int numPoints[PYR_LEVELS];  // 每一层的点数目
 	AffLight thisToNext_aff;
 	SE3 thisToNext;
 
@@ -163,26 +163,31 @@ private:
 
 
 
-
+//* 作为 KDTreeSingleIndexAdaptor 类的第二个模板参数必须给出, 包括下面的接口
 struct FLANNPointcloud
 {
     inline FLANNPointcloud() {num=0; points=0;}
     inline FLANNPointcloud(int n, Pnt* p) :  num(n), points(p) {}
 	int num;
 	Pnt* points;
+	// 返回数据点的数目
 	inline size_t kdtree_get_point_count() const { return num; }
+	// 使用L2度量时使用, 返回向量p1, 到第idx_p2个数据点的欧氏距离
 	inline float kdtree_distance(const float *p1, const size_t idx_p2,size_t /*size*/) const
 	{
 		const float d0=p1[0]-points[idx_p2].u;
 		const float d1=p1[1]-points[idx_p2].v;
 		return d0*d0+d1*d1;
 	}
-
+	// 返回第idx个点的第dim维数据
 	inline float kdtree_get_pt(const size_t idx, int dim) const
 	{
 		if (dim==0) return points[idx].u;
 		else return points[idx].v;
 	}
+	// 可选计算bounding box
+	// false 表示默认
+	// true 本函数应该返回bb
 	template <class BBOX>
 		bool kdtree_get_bbox(BBOX& /* bb */) const { return false; }
 };

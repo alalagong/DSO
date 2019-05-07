@@ -76,7 +76,7 @@ After cloning, just run `git submodule update --init` to include this.  It trans
 		cd build
 		cmake ..
 		make -j4
-	
+
 this will compile a library `libdso.a`, which can be linked from external projects. 
 It will also build a binary `dso_dataset`, to run DSO on datasets. However, for this
 OpenCV and Pangolin need to be installed.
