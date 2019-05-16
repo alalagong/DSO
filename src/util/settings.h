@@ -213,7 +213,7 @@ extern int staticPatternPadding[10];
 
 //
 #define patternNum 8
-#define patternP staticPattern[8]
+#define patternP staticPattern[8] // 取第8种pattern
 #define patternPadding 2
 
 

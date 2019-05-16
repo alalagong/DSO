@@ -81,21 +81,24 @@ CoarseInitializer::~CoarseInitializer()
 bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps)
 {
 	newFrame = newFrameHessian;
-
+//[ ***step 1*** ] 先显示新来的帧
+	// 新的一帧, 在跟踪之前显示的
     for(IOWrap::Output3DWrapper* ow : wraps)
         ow->pushLiveFrame(newFrameHessian);
 
 	int maxIterations[] = {5,5,10,30,50};
 
 
-
+	//? 调参
 	alphaK = 2.5*2.5;//*freeDebugParam1*freeDebugParam1;
 	alphaW = 150*150;//*freeDebugParam2*freeDebugParam2;
 	regWeight = 0.8;//*freeDebugParam4;
 	couplingWeight = 1;//*freeDebugParam5;
 
-	if(!snapped)
+//[ ***step 2*** ] 初始化每个点逆深度为1, 初始化光度参数, 位姿SE3
+	if(!snapped) //? 啥意思
 	{
+		// 初始化
 		thisToNext.translation().setZero();
 		for(int lvl=0;lvl<pyrLevelsUsed;lvl++)
 		{
@@ -114,21 +117,24 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 	SE3 refToNew_current = thisToNext;
 	AffLight refToNew_aff_current = thisToNext_aff;
 
+	// 如果都有仿射系数, 则估计一个初值
 	if(firstFrame->ab_exposure>0 && newFrame->ab_exposure>0)
 		refToNew_aff_current = AffLight(logf(newFrame->ab_exposure /  firstFrame->ab_exposure),0); // coarse approximation.
 
 
 	Vec3f latestRes = Vec3f::Zero();
+	// 从顶层开始估计
 	for(int lvl=pyrLevelsUsed-1; lvl>=0; lvl--)
-	{
+	{ 
 
-
-
+//[ ***step 3*** ] 使用计算过的上一层来初始化下一层
+		// 顶层未初始化到, reset来完成
 		if(lvl<pyrLevelsUsed-1)
 			propagateDown(lvl+1);
 
 		Mat88f H,Hsc; Vec8f b,bsc;
-		resetPoints(lvl);
+		resetPoints(lvl); // 这里对顶层进行初始化!
+
 		Vec3f resOld = calcResAndGS(lvl, H, b, Hsc, bsc, refToNew_current, refToNew_aff_current, false);
 		applyStep(lvl);
 
@@ -325,6 +331,14 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
         ow->pushDepthImage(&iRImg);
 }
 
+
+/********************************
+ * @ function:
+ * 
+ * @ param: 
+ * 
+ * @ note:
+ *******************************/
 // calculates residual, Hessian and Hessian-block neede for re-substituting depth.
 Vec3f CoarseInitializer::calcResAndGS(
 		int lvl, Mat88f &H_out, Vec8f &b_out,
@@ -333,21 +347,24 @@ Vec3f CoarseInitializer::calcResAndGS(
 		bool plot)
 {
 	int wl = w[lvl], hl = h[lvl];
-	Eigen::Vector3f* colorRef = firstFrame->dIp[lvl];
+	// 当前层图像及梯度
+	Eigen::Vector3f* colorRef = firstFrame->dIp[lvl];  
 	Eigen::Vector3f* colorNew = newFrame->dIp[lvl];
 
+	//! 旋转矩阵R * 内参矩阵K_inv
 	Mat33f RKi = (refToNew.rotationMatrix() * Ki[lvl]).cast<float>();
-	Vec3f t = refToNew.translation().cast<float>();
-	Eigen::Vector2f r2new_aff = Eigen::Vector2f(exp(refToNew_aff.a), refToNew_aff.b);
+	Vec3f t = refToNew.translation().cast<float>(); // 平移
+	Eigen::Vector2f r2new_aff = Eigen::Vector2f(exp(refToNew_aff.a), refToNew_aff.b); // 光度参数
 
+	// 该层的相机参数
 	float fxl = fx[lvl];
 	float fyl = fy[lvl];
 	float cxl = cx[lvl];
 	float cyl = cy[lvl];
 
 
-	Accumulator11 E;
-	acc9.initialize();
+	Accumulator11 E;  // 1*1 的累加器
+	acc9.initialize(); // 初始值, 分配空间
 	E.initialize();
 
 
@@ -359,7 +376,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 		Pnt* point = ptsl+i;
 
 		point->maxstep = 1e10;
-		if(!point->isGood)
+		if(!point->isGood)  // 点不好
 		{
 			E.updateSingle((float)(point->energy[0]));
 			point->energy_new = point->energy;
@@ -367,7 +384,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 			continue;
 		}
 
-        VecNRf dp0;
+        VecNRf dp0;  // 8*1矩阵, 每个点附近的残差个数为8个
         VecNRf dp1;
         VecNRf dp2;
         VecNRf dp3;
@@ -377,24 +394,28 @@ Vec3f CoarseInitializer::calcResAndGS(
         VecNRf dp7;
         VecNRf dd;
         VecNRf r;
-		JbBuffer_new[i].setZero();
+		JbBuffer_new[i].setZero();  // 10*1 向量
 
 		// sum over all residuals.
 		bool isGood = true;
 		float energy=0;
 		for(int idx=0;idx<patternNum;idx++)
 		{
+			// pattern的坐标偏移
 			int dx = patternP[idx][0];
 			int dy = patternP[idx][1];
 
-
-			Vec3f pt = RKi * Vec3f(point->u+dx, point->v+dy, 1) + t*point->idepth_new;
+			//! R*(X/Z, Y/Z, 1) + t/Z, 变换到新的点, 深度仍然使用上一帧的!
+			Vec3f pt = RKi * Vec3f(point->u+dx, point->v+dy, 1) + t*point->idepth_new; 
+			// 归一化坐标
 			float u = pt[0] / pt[2];
 			float v = pt[1] / pt[2];
+			// 像素坐标
 			float Ku = fxl * u + cxl;
 			float Kv = fyl * v + cyl;
-			float new_idepth = point->idepth_new/pt[2];
+			float new_idepth = point->idepth_new/pt[2]; // 新一帧上的逆深度
 
+			// 落在边缘附近, 则不好
 			if(!(Ku > 1 && Kv > 1 && Ku < wl-2 && Kv < hl-2 && new_idepth > 0))
 			{
 				isGood = false;
@@ -629,10 +650,14 @@ Vec3f CoarseInitializer::calcEC(int lvl)
 	//printf("ER: %f %f %f!\n", couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], (float)E.num.numIn1m);
 	return Vec3f(couplingWeight*E.A1m[0], couplingWeight*E.A1m[1], E.num);
 }
+
+//* 使用最近点来更新每个点的iR
 void CoarseInitializer::optReg(int lvl)
 {
 	int npts = numPoints[lvl];
 	Pnt* ptsl = points[lvl];
+	
+	//? 
 	if(!snapped)
 	{
 		for(int i=0;i<npts;i++)
@@ -648,6 +673,7 @@ void CoarseInitializer::optReg(int lvl)
 
 		float idnn[10];
 		int nnn=0;
+		// 获得当前点周围最近10个点, 质量好的点的iR
 		for(int j=0;j<10;j++)
 		{
 			if(point->neighbours[j] == -1) continue;
@@ -657,9 +683,10 @@ void CoarseInitializer::optReg(int lvl)
 			nnn++;
 		}
 
+		// 与最近点中位数进行加权获得新的iR
 		if(nnn > 2)
 		{
-			std::nth_element(idnn,idnn+nnn/2,idnn+nnn);
+			std::nth_element(idnn,idnn+nnn/2,idnn+nnn); // 获得中位数
 			point->iR = (1-regWeight)*point->idepth + regWeight*idnn[nnn/2];
 		}
 	}
@@ -709,34 +736,41 @@ void CoarseInitializer::propagateUp(int srcLvl)
 	optReg(srcLvl+1);
 }
 
+//* 使用上层信息来初始化下层
+//@ param: 当前的金字塔层+1
+//@ note: 没法初始化顶层值 
 void CoarseInitializer::propagateDown(int srcLvl)
 {
 	assert(srcLvl>0);
 	// set idepth of target
 
-	int nptst= numPoints[srcLvl-1];
-	Pnt* ptss = points[srcLvl];
-	Pnt* ptst = points[srcLvl-1];
+	int nptst= numPoints[srcLvl-1]; // 当前层的点数目
+	Pnt* ptss = points[srcLvl];  // 当前层+1, 上一层的点集
+	Pnt* ptst = points[srcLvl-1]; // 当前层点集
 
 	for(int i=0;i<nptst;i++)
 	{
-		Pnt* point = ptst+i;
-		Pnt* parent = ptss+point->parent;
+		Pnt* point = ptst+i;  // 遍历当前层的点
+		Pnt* parent = ptss+point->parent;  // 找到当前点的parrent
 
-		if(!parent->isGood || parent->lastHessian < 0.1) continue;
+		if(!parent->isGood || parent->lastHessian < 0.1) continue; //? 父点不好, lastHessian是啥
 		if(!point->isGood)
 		{
+			// 当前点不好, 则把父点的值直接给它, 并且置位good
 			point->iR = point->idepth = point->idepth_new = parent->iR;
 			point->isGood=true;
 			point->lastHessian=0;
 		}
 		else
 		{
+			// 通过hessian给point和parent加权求得新的iR
+			//? iR是啥...., 公式怎么来的
 			float newiR = (point->iR*point->lastHessian*2 + parent->iR*parent->lastHessian) / (point->lastHessian*2+parent->lastHessian);
 			point->iR = point->idepth = point->idepth_new = newiR;
 		}
 	}
-	optReg(srcLvl-1);
+	//? 为什么在这里又更新了iR, 没有更新 idepth
+	optReg(srcLvl-1); // 当前层
 }
 
 
@@ -806,7 +840,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 			if((lvl!=0 && statusMapB[x+y*wl]) || (lvl==0 && statusMap[x+y*wl] != 0))
 			{
 				//assert(patternNum==9);
-				pl[nl].u = x+0.1;
+				pl[nl].u = x+0.1;   //? 加0.1干啥
 				pl[nl].v = y+0.1;
 				pl[nl].idepth = 1;
 				pl[nl].iR = 1;
@@ -846,9 +880,11 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 	}
 	delete[] statusMap;
 	delete[] statusMapB;
-
+//[ ***step 4*** ] 计算点的最近邻和父点
 	makeNN();
 
+	// 参数初始化
+	//? 具体什么用处???
 	thisToNext=SE3();
 	snapped = false;
 	frameID = snappedAt = 0;
@@ -858,16 +894,18 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 
 }
 
+//* 重置点的参数
 void CoarseInitializer::resetPoints(int lvl)
 {
 	Pnt* pts = points[lvl];
 	int npts = numPoints[lvl];
 	for(int i=0;i<npts;i++)
 	{
+		// 重置
 		pts[i].energy.setZero();
 		pts[i].idepth_new = pts[i].idepth;
 
-
+		// 如果是最顶层, 则使用周围点平均值来重置
 		if(lvl==pyrLevelsUsed-1 && !pts[i].isGood)
 		{
 			float snd=0, sn=0;
@@ -886,6 +924,7 @@ void CoarseInitializer::resetPoints(int lvl)
 		}
 	}
 }
+
 void CoarseInitializer::doStep(int lvl, float lambda, Vec8f inc)
 {
 
@@ -970,7 +1009,7 @@ void CoarseInitializer::makeK(CalibHessian* HCalib)
 
 
 
-
+//* 生成每一层点的KDTree, 并用其找到邻近点集和父点 
 void CoarseInitializer::makeNN()
 {
 	const float NNDistFactor=0.05;
@@ -1040,7 +1079,7 @@ void CoarseInitializer::makeNN()
 
 				assert(ret_index[0]>=0 && ret_index[0] < numPoints[lvl+1]);
 			}
-			else  // 最高层没有
+			else  // 最高层没有父节点
 			{
 				pts[i].parent = -1;
 				pts[i].parentDist = -1;

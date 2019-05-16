@@ -88,6 +88,7 @@ private:
   }
 };
 
+
 class Accumulator11
 {
 public:
@@ -107,11 +108,11 @@ public:
 
   inline void finish()
   {
-	shiftUp(true);
+	shiftUp(true); // 都进位到 m
 	A=SSEData1m[0+0] + SSEData1m[0+1] + SSEData1m[0+2] + SSEData1m[0+3];
   }
 
-
+	// 加4个字节以内
   inline void updateSingle(
 		  const float val)
   {
@@ -120,6 +121,7 @@ public:
 	  shiftUp(false);
   }
 
+// 加16个字节
   inline void updateSSE(
 		  const __m128 val)
   {
@@ -147,15 +149,16 @@ public:
 
 
 private:
-  EIGEN_ALIGN16 float SSEData[4*1];
+  EIGEN_ALIGN16 float SSEData[4*1];  // 16字节
   EIGEN_ALIGN16 float SSEData1k[4*1];
   EIGEN_ALIGN16 float SSEData1m[4*1];
   float numIn1, numIn1k, numIn1m;
 
-
+	//* 进位
   void shiftUp(bool force)
   {
-	  if(numIn1 > 1000 || force)
+		// 大于1000, 相加则进位到 k 
+	  if(numIn1 > 1000 || force) //? 为啥1000次就要进位, 答: 只要不超过128位就行, 一个大概的数, 1000个32位的相加, 肯定超不了
 	  {
 		  _mm_store_ps(SSEData1k, _mm_add_ps(_mm_load_ps(SSEData),_mm_load_ps(SSEData1k)));
 		  numIn1k+=numIn1; numIn1=0;
@@ -992,7 +995,7 @@ public:
   {
 	H.setZero();
 	b.setZero();
-    memset(SSEData,0, sizeof(float)*4*45);
+    memset(SSEData,0, sizeof(float)*4*45);  // 会对128位, 16字节进行对齐, 因此每个数用4个float存
     memset(SSEData1k,0, sizeof(float)*4*45);
     memset(SSEData1m,0, sizeof(float)*4*45);
     num = numIn1 = numIn1k = numIn1m = 0;
@@ -1001,11 +1004,12 @@ public:
   inline void finish()
   {
 	H.setZero();
-	shiftUp(true);
+	shiftUp(true);  // 强制进位到m
 	assert(numIn1==0);
 	assert(numIn1k==0);
 
 	int idx=0;
+	//* H矩阵是对称的, 只有45个数值
 	for(int r=0;r<9;r++)
 		for(int c=r;c<9;c++)
 		{
@@ -1016,7 +1020,7 @@ public:
 	  assert(idx==4*45);
   }
 
-
+// 计算一个9维向量相乘, 得到9*9矩阵
   inline void updateSSE(
 		  const __m128 J0,const __m128 J1,
 		  const __m128 J2,const __m128 J3,
@@ -1024,7 +1028,9 @@ public:
 		  const __m128 J6,const __m128 J7,
 		  const __m128 J8)
   {
+		// 一共45个值
 	  float* pt=SSEData;
+		// 第一行9个值
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J0,J0))); pt+=4;
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J0,J1))); pt+=4;
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J0,J2))); pt+=4;
@@ -1034,7 +1040,7 @@ public:
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J0,J6))); pt+=4;
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J0,J7))); pt+=4;
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J0,J8))); pt+=4;
-
+		// 第二行8个, 因为对称
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J1,J1))); pt+=4;
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J1,J2))); pt+=4;
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J1,J3))); pt+=4;
@@ -1080,14 +1086,14 @@ public:
 	  _mm_store_ps(pt, _mm_add_ps(_mm_load_ps(pt),_mm_mul_ps(J8,J8))); pt+=4;
 
 	  num+=4;
-	  numIn1++;
+	  numIn1++;  // 乘一次加一
 	  shiftUp(false);
   }
 
 
 
 
-
+// 带权重的9维向量得到9*9矩阵
   inline void updateSSE_eighted(
 		  const __m128 J0,const __m128 J1,
 		  const __m128 J2,const __m128 J3,
@@ -1165,7 +1171,7 @@ public:
 	  shiftUp(false);
   }
 
-
+// 不使用_m128来计算
   inline void updateSingle(
 		  const float J0,const float J1,
 		  const float J2,const float J3,
@@ -1239,6 +1245,7 @@ public:
 	  shiftUp(false);
   }
 
+// 不使用对齐加速的, 带有权重的
   inline void updateSingleWeighted(
 		  float J0, float J1,
 		  float J2, float J3,

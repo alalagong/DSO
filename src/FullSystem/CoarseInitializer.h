@@ -48,32 +48,32 @@ public:
 	float u,v;
 
 	// idepth / isgood / energy during optimization.
-	float idepth;
-	bool isGood;
-	Vec2f energy;		// (UenergyPhotometric, energyRegularizer)	
+	float idepth;				//!< 该点对应参考帧的逆深度
+	bool isGood;				//!< 怎么判断?
+	Vec2f energy;				//!<   // (UenergyPhotometric, energyRegularizer)	
 	bool isGood_new;
-	float idepth_new;
-	Vec2f energy_new;
+	float idepth_new;			//!< 该点在新的一帧(当前帧)上的逆深度
+	Vec2f energy_new;			//!< 
 
-	float iR;
+	float iR;					//!< 
 	float iRSumNum;
 
-	float lastHessian;
+	float lastHessian;			//!< 
 	float lastHessian_new;
 
 	// max stepsize for idepth (corresponding to max. movement in pixel-space).
-	float maxstep;
+	float maxstep;				//!< 
 
 	// idx (x+y*w) of closest point one pyramid level above.
-	int parent;		  			//!< 上一层中该点的父节点 (距离最近的)
+	int parent;		  			//!< 上一层中该点的父节点 (距离最近的)的id
 	float parentDist;			//!< 上一层中与父节点的距离
 
 	// idx (x+y*w) of up to 10 nearest points in pixel space.
 	int neighbours[10];			//!< 图像中离该点最近的10个点
 	float neighboursDist[10];   //!< 最近10个点的距离
 
-	float my_type; // 第0层提取是1, 2, 4, 对应d, 2d, 4d, 其它层是1
-	float outlierTH; // 外点阈值
+	float my_type; 				//!< 第0层提取是1, 2, 4, 对应d, 2d, 4d, 其它层是1
+	float outlierTH; 			//!< 外点阈值
 };
 
 class CoarseInitializer {
@@ -87,20 +87,20 @@ public:
 	bool trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps);
 	void calcTGrads(FrameHessian* newFrameHessian);
 
-	int frameID;
+	int frameID;					//!< 
 	bool fixAffine;
 	bool printDebug;
 
-	Pnt* points[PYR_LEVELS]; 	// 每一层上的点类
-	int numPoints[PYR_LEVELS];  // 每一层的点数目
-	AffLight thisToNext_aff;
-	SE3 thisToNext;
+	Pnt* points[PYR_LEVELS]; 		//!< 每一层上的点类, 是第一帧提取出来的
+	int numPoints[PYR_LEVELS];  	//!< 每一层的点数目
+	AffLight thisToNext_aff;		//!< 参考帧与当前帧之间光度系数
+	SE3 thisToNext;					//!< 
 
 
-	FrameHessian* firstFrame;
-	FrameHessian* newFrame;
+	FrameHessian* firstFrame;		//!< 第一帧
+	FrameHessian* newFrame;			//!< track中新加入的帧
 private:
-	Mat33 K[PYR_LEVELS];
+	Mat33 K[PYR_LEVELS];			//!< camera参数
 	Mat33 Ki[PYR_LEVELS];
 	double fx[PYR_LEVELS];
 	double fy[PYR_LEVELS];
@@ -114,7 +114,7 @@ private:
 	int h[PYR_LEVELS];
 	void makeK(CalibHessian* HCalib);
 
-	bool snapped;
+	bool snapped;					//!< 
 	int snappedAt;
 
 	// pyramid images & levels on all levels
@@ -125,18 +125,19 @@ private:
 
 	// temporary buffers for H and b.
 	Vec10f* JbBuffer;			// 0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.
-	Vec10f* JbBuffer_new;
+	Vec10f* JbBuffer_new;		//!< 
 
-	Accumulator9 acc9;
+	//* 9维向量, 乘积获得9*9矩阵, 并做的累加器
+	Accumulator9 acc9;				
 	Accumulator9 acc9SC;
 
 
-	Vec3f dGrads[PYR_LEVELS];
+	Vec3f dGrads[PYR_LEVELS];		//!< 
 
-	float alphaK;
-	float alphaW;
-	float regWeight;
-	float couplingWeight;
+	float alphaK;					//!< 
+	float alphaW;					//!< 
+	float regWeight;				//!< 对逆深度的加权值
+	float couplingWeight;			//!< 
 
 	Vec3f calcResAndGS(
 			int lvl,

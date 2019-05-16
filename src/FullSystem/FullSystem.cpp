@@ -848,7 +848,6 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		//[ ***step 4.1*** ] 加入第一帧
 		if(coarseInitializer->frameID<0)	// first frame set. fh is kept by coarseInitializer.
 		{
-
 			coarseInitializer->setFirst(&Hcalib, fh);
 		}
 		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
