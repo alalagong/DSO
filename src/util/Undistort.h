@@ -51,12 +51,12 @@ public:
 	template<typename T> void processFrame(T* image_in, float exposure_time, float factor=1);
 	void unMapFloatImage(float* image);
 
-	ImageAndExposure* output;
+	ImageAndExposure* output; //!< 光度矫正后的图像
 
 	float* getG() {if(!valid) return 0; else return G;};
 private:
-    float G[256*256];
-    int GDepth;
+    float G[256*256]; 	//!< 响应函数值逆变换
+    int GDepth;			//!< 响应函数值的个数 
 	float* vignetteMap;
 	float* vignetteMapInv;
 	int w,h;
@@ -85,15 +85,15 @@ public:
 
 	void loadPhotometricCalibration(std::string file, std::string noiseImage, std::string vignetteImage);
 
-	PhotometricUndistorter* photometricUndist;
+	PhotometricUndistorter* photometricUndist; // 光度矫正类
 
 protected:
-    int w, h, wOrg, hOrg, wUp, hUp;
+    int w, h, wOrg, hOrg, wUp, hUp;	//!< 输入图像大小, 相机原像素大小, 
     int upsampleUndistFactor;
-	Mat33 K;
-	VecX parsOrg;
+	Mat33 K;						//!< 矫正后的相机参数( 也可能是更改了的标定输出)
+	VecX parsOrg;					//!< 原来相机参数
 	bool valid;
-	bool passthrough;
+	bool passthrough;				//!< 
 
 	float* remapX;
 	float* remapY;

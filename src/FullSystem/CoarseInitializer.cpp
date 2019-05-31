@@ -405,7 +405,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 			int dx = patternP[idx][0];
 			int dy = patternP[idx][1];
 
-			//! R*(X/Z, Y/Z, 1) + t/Z, 变换到新的点, 深度仍然使用上一帧的!
+			//! R*(X/Z, Y/Z, 1) + t/Z, 变换到新的点, 深度仍然使用Host帧的!
 			Vec3f pt = RKi * Vec3f(point->u+dx, point->v+dy, 1) + t*point->idepth_new; 
 			// 归一化坐标
 			float u = pt[0] / pt[2];
@@ -415,33 +415,38 @@ Vec3f CoarseInitializer::calcResAndGS(
 			float Kv = fyl * v + cyl;
 			float new_idepth = point->idepth_new/pt[2]; // 新一帧上的逆深度
 
-			// 落在边缘附近, 则不好
+			// 落在边缘附近，深度小于0, 则不好
 			if(!(Ku > 1 && Kv > 1 && Ku < wl-2 && Kv < hl-2 && new_idepth > 0))
 			{
 				isGood = false;
 				break;
 			}
-
+			// 插值得到新图像中的 patch 像素值，(输入3维，输出3维)
 			Vec3f hitColor = getInterpolatedElement33(colorNew, Ku, Kv, wl);
 			//Vec3f hitColor = getInterpolatedElement33BiCub(colorNew, Ku, Kv, wl);
 
+			// 参考帧上的 patch 上的像素值
 			//float rlR = colorRef[point->u+dx + (point->v+dy) * wl][0];
 			float rlR = getInterpolatedElement31(colorRef, point->u+dx, point->v+dy, wl);
 
+			// 像素值有穷, good
 			if(!std::isfinite(rlR) || !std::isfinite((float)hitColor[0]))
 			{
 				isGood = false;
 				break;
 			}
 
-
+			// 残差
 			float residual = hitColor[0] - r2new_aff[0] * rlR - r2new_aff[1];
-			float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual);
+			// Huber权重
+			float hw = fabs(residual) < setting_huberTH ? 1 : setting_huberTH / fabs(residual); 
+			// huberweight * (2-huberweight) = Objective Function
+			// robust 权重和函数之间的关系
 			energy += hw *residual*residual*(2-hw);
 
 
 
-
+			//? 这是啥
 			float dxdd = (t[0]-t[2]*u)/pt[2];
 			float dydd = (t[1]-t[2]*v)/pt[2];
 

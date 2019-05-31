@@ -42,11 +42,18 @@ namespace dso
 
 
 
+//******************************** 光度矫正 ************************************
 
-
-
-
-
+/********************************
+ * @ function: 光度矫正构造函数
+ * 
+ * @ param: 	file          	响应函数参数文件
+ *		 		noiseImage   	
+ *		 		vignetteImage 	辐射衰减图像
+ *				w_, h_			图像大小
+ * 
+ * @ note:
+ *******************************/
 PhotometricUndistorter::PhotometricUndistorter(
 		std::string file,
 		std::string noiseImage,
@@ -75,11 +82,12 @@ PhotometricUndistorter::PhotometricUndistorter(
 	}
 
 
-
+	// 得到响应函数的逆变换
 	{
 		std::string line;
 		std::getline( f, line );
 		std::istringstream l1i( line );
+		// begin迭代器, end迭代器来初始化
 		std::vector<float> Gvec = std::vector<float>( std::istream_iterator<float>(l1i), std::istream_iterator<float>() );
 
 
@@ -103,19 +111,20 @@ PhotometricUndistorter::PhotometricUndistorter(
 				return;
 			}
 		}
-
+		// 对响应值进行标准化
 		float min=G[0];
         float max=G[GDepth-1];
         for(int i=0;i<GDepth;i++) G[i] = 255.0 * (G[i] - min) / (max-min);			// make it to 0..255 => 0..255.
 	}
 
+	// 如果没有标定值, 则初始化为0-255 线性分布值
 	if(setting_photometricCalibration==0)
 	{
         for(int i=0;i<GDepth;i++) G[i]=255.0f*i/(float)(GDepth-1);
 	}
 
 
-
+	// 读取图像, 为什么要读一个16位, 一个8位的???
 	printf("Reading Vignette Image from %s\n",vignetteImage.c_str());
 	MinimalImage<unsigned short>* vm16 = IOWrap::readImageBW_16U(vignetteImage.c_str());
 	MinimalImageB* vm8 = IOWrap::readImageBW_8U(vignetteImage.c_str());
@@ -132,7 +141,7 @@ PhotometricUndistorter::PhotometricUndistorter(
 			if(vm8!=0) delete vm8;
 			return;
 		}
-
+		// 使用最大值来归一化
 		float maxV=0;
 		for(int i=0;i<w*h;i++)
 			if(vm16->at(i) > maxV) maxV = vm16->at(i);
@@ -169,7 +178,7 @@ PhotometricUndistorter::PhotometricUndistorter(
 	if(vm16!=0) delete vm16;
 	if(vm8!=0) delete vm8;
 
-
+	// 求逆
 	for(int i=0;i<w*h;i++)
 		vignetteMapInv[i] = 1.0f / vignetteMap[i];
 
@@ -184,7 +193,7 @@ PhotometricUndistorter::~PhotometricUndistorter()
 	delete output;
 }
 
-
+//@ 给图像加上响应函数
 void PhotometricUndistorter::unMapFloatImage(float* image)
 {
 	int wh=w*h;
@@ -193,11 +202,11 @@ void PhotometricUndistorter::unMapFloatImage(float* image)
 		float BinvC;
 		float color = image[i];
 
-		if(color < 1e-3)
+		if(color < 1e-3)  // 小置零
 			BinvC=0.0f;
-        else if(color > GDepth-1.01f)
+        else if(color > GDepth-1.01f) // 大最大值
             BinvC=GDepth-1.1;
-		else
+		else // 中间对响应函数插值
 		{
 			int c = color;
 			float a = color-c;
@@ -218,7 +227,7 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 	assert(output->w == w && output->h == h);
 	assert(data != 0);
 
-
+	// 没有光度模型
 	if(!valid || exposure_time <= 0 || setting_photometricCalibration==0) // disable full photometric calibration.
 	{
 		for(int i=0; i<wh;i++)
@@ -232,16 +241,16 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 	{
 		for(int i=0; i<wh;i++)
 		{
-			data[i] = G[image_in[i]];
+			data[i] = G[image_in[i]]; // 去掉响应函数
 		}
 
-		if(setting_photometricCalibration==2)
+		if(setting_photometricCalibration==2) // 去掉衰减系数
 		{
 			for(int i=0; i<wh;i++)
 				data[i] *= vignetteMapInv[i];
 		}
 
-		output->exposure_time = exposure_time;
+		output->exposure_time = exposure_time; // 设置曝光时间
 		output->timestamp = 0;
 	}
 
@@ -250,12 +259,13 @@ void PhotometricUndistorter::processFrame(T* image_in, float exposure_time, floa
 		output->exposure_time = 1;
 
 }
+// 模板特殊化, 指定两个类型
 template void PhotometricUndistorter::processFrame<unsigned char>(unsigned char* image_in, float exposure_time, float factor);
 template void PhotometricUndistorter::processFrame<unsigned short>(unsigned short* image_in, float exposure_time, float factor);
 
 
 
-
+//******************************** 矫正基类, 包括几何和光度 ************************************
 
 Undistort::~Undistort()
 {
@@ -283,8 +293,9 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
 
 	float ic[10];
 
-	Undistort* u;
+	Undistort* u; // 矫正基类, 作为返回值, 其他的类型继承自它
 
+	//* 下面三种具体模型, 是针对没有指明模型名字的, 只给了参数
     // for backwards-compatibility: Use RadTan model for 8 parameters.
 	if(std::sscanf(l1.c_str(), "%f %f %f %f %f %f %f %f",
 			&ic[0], &ic[1], &ic[2], &ic[3],
@@ -299,13 +310,13 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
     else if(std::sscanf(l1.c_str(), "%f %f %f %f %f",
 			&ic[0], &ic[1], &ic[2], &ic[3], &ic[4]) == 5)
 	{
-		if(ic[4]==0)
+		if(ic[4]==0)  // 没有FOV的畸变参数, 只有pinhole
 		{
 			printf("found PINHOLE camera model, building rectifier.\n");
             u = new UndistortPinhole(configFilename.c_str(), true);
 			if(!u->isValid()) {delete u; return 0; }
 		}
-		else
+		else // pinhole + FOV , atan
 		{
 			printf("found ATAN camera model, building rectifier.\n");
             u = new UndistortFOV(configFilename.c_str(), true);
@@ -315,8 +326,7 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
 
 
 
-
-
+	//* 以下是指明了相机模型的几种选择
     // clean model selection implementation.
     else if(std::sscanf(l1.c_str(), "KannalaBrandt %f %f %f %f %f %f %f %f",
             &ic[0], &ic[1], &ic[2], &ic[3],
@@ -368,7 +378,7 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
         printf("could not read calib file! exit.");
         exit(1);
     }
-
+	// 读入相机的光度标定参数
 	u->loadPhotometricCalibration(
 				gammaFilename,
 				"",
@@ -377,11 +387,14 @@ Undistort* Undistort::getUndistorterForFile(std::string configFilename, std::str
 	return u;
 }
 
+//* 得到光度矫正类
 void Undistort::loadPhotometricCalibration(std::string file, std::string noiseImage, std::string vignetteImage)
 {
 	photometricUndist = new PhotometricUndistorter(file, noiseImage, vignetteImage,getOriginalSize()[0], getOriginalSize()[1]);
 }
 
+
+//* 得到去除光度参数的图像, 并添加几何和光度噪声
 template<typename T>
 ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float exposure, double timestamp, float factor) const
 {
@@ -390,16 +403,18 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 		printf("Undistort::undistort: wrong image size (%d %d instead of %d %d) \n", image_raw->w, image_raw->h, w, h);
 		exit(1);
 	}
-
-	photometricUndist->processFrame<T>(image_raw->data, exposure, factor);
+//[ ***step 1*** ] 去除光度参数的影响
+	photometricUndist->processFrame<T>(image_raw->data, exposure, factor); // 去除光度参数影响
 	ImageAndExposure* result = new ImageAndExposure(w, h, timestamp);
-	photometricUndist->output->copyMetaTo(*result);
+	photometricUndist->output->copyMetaTo(*result); // 只复制了曝光时间
 
 	if (!passthrough)
 	{
-		float* out_data = result->image;
-		float* in_data = photometricUndist->output->image;
 
+		float* out_data = result->image; 					// 复制的图像做输出
+		float* in_data = photometricUndist->output->image;	// 输入图像
+
+//[ ***step 2*** ] 如果定义了噪声值, 设置随机几何噪声大小, 并且添加到输出图像
 		float* noiseMapX=0;
 		float* noiseMapY=0;
 		if(benchmark_varNoise>0)
@@ -428,6 +443,7 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 
 			if(benchmark_varNoise>0)
 			{
+				//? 具体怎么算的?
 				float deltax = getInterpolatedElement11BiCub(noiseMapX, 4+(xx/(float)wOrg)*benchmark_noiseGridsize, 4+(yy/(float)hOrg)*benchmark_noiseGridsize, benchmark_noiseGridsize+8 );
 				float deltay = getInterpolatedElement11BiCub(noiseMapY, 4+(xx/(float)wOrg)*benchmark_noiseGridsize, 4+(yy/(float)hOrg)*benchmark_noiseGridsize, benchmark_noiseGridsize+8 );
 				float x = idx%w + deltax;
@@ -441,7 +457,7 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 				yy = getInterpolatedElement(remapY, x, y, w);
 			}
 
-
+			// 插值得到带有几何噪声的输出图像
 			if(xx<0)
 				out_data[idx] = 0;
 			else
@@ -476,6 +492,7 @@ ImageAndExposure* Undistort::undistort(const MinimalImage<T>* image_raw, float e
 		memcpy(result->image, photometricUndist->output->image, sizeof(float)*w*h);
 	}
 
+//[ ***step 3*** ]	添加光度噪声
 	applyBlurNoise(result->image);
 
 	return result;
@@ -484,9 +501,10 @@ template ImageAndExposure* Undistort::undistort<unsigned char>(const MinimalImag
 template ImageAndExposure* Undistort::undistort<unsigned short>(const MinimalImage<unsigned short>* image_raw, float exposure, double timestamp, float factor) const;
 
 
+//* 添加图像高斯噪声
 void Undistort::applyBlurNoise(float* img) const
 {
-	if(benchmark_varBlurNoise==0) return;
+	if(benchmark_varBlurNoise==0) return;  // 不添加噪声
 
 	int numnoise=(benchmark_noiseGridsize+8)*(benchmark_noiseGridsize+8);
 	float* noiseMapX=new float[numnoise];
@@ -502,11 +520,12 @@ void Undistort::applyBlurNoise(float* img) const
 		}
 	}
 
-
+	// 高斯分布
 	float gaussMap[1000];
 	for(int i=0;i<1000;i++)
 		gaussMap[i] = expf((float)(-i*i/(100.0*100.0)));
 
+	// 对 X-Y 添加高斯噪声
 	// x-blur.
 	for(int y=0;y<h;y++)
 		for(int x=0;x<w;x++)
@@ -585,6 +604,7 @@ void Undistort::applyBlurNoise(float* img) const
 	delete[] noiseMapY;
 }
 
+//* 求出最优的矫正后相机内参
 void Undistort::makeOptimalK_crop()
 {
 	printf("finding CROP optimal new model!\n");
@@ -599,8 +619,9 @@ void Undistort::makeOptimalK_crop()
 	float maxY = 0;
 
 	for(int x=0; x<100000;x++)
-	{tgX[x] = (x-50000.0f) / 10000.0f; tgY[x] = 0;}
-	distortCoordinates(tgX, tgY,tgX, tgY,100000);
+	{tgX[x] = (x-50000.0f) / 10000.0f; tgY[x] = 0;} // -5 ~ 5 ?
+	distortCoordinates(tgX, tgY,tgX, tgY,100000); // 矫正
+	//? 这和minX 和 maxX 有什么意义?
 	for(int x=0; x<100000;x++)
 	{
 		if(tgX[x] > 0 && tgX[x] < wOrg-1)
@@ -609,6 +630,7 @@ void Undistort::makeOptimalK_crop()
 			maxX = (x-50000.0f) / 10000.0f;
 		}
 	}
+
 	for(int y=0; y<100000;y++)
 	{tgY[y] = (y-50000.0f) / 10000.0f; tgX[y] = 0;}
 	distortCoordinates(tgX, tgY,tgX, tgY,100000);
@@ -633,7 +655,7 @@ void Undistort::makeOptimalK_crop()
 	printf("initial range: x: %.4f - %.4f; y: %.4f - %.4f!\n", minX, maxX, minY, maxY);
 
 
-
+	//?? 没懂???
 	// 2. while there are invalid pixels at the border: shrink square at the side that has invalid pixels,
 	// if several to choose from, shrink the wider dimension.
 	bool oobLeft=true, oobRight=true, oobTop=true, oobBottom=true;
@@ -641,6 +663,8 @@ void Undistort::makeOptimalK_crop()
 	while(oobLeft || oobRight || oobTop || oobBottom)
 	{
 		oobLeft=oobRight=oobTop=oobBottom=false;
+		// X 赋值最大最小, Y 赋值是根据坐标从小到大映射在minY 到 minY 之间
+		//! 这样保证每个Y坐标都分别对应最大x, 最小x, 以便求出边界
 		for(int y=0;y<h;y++)
 		{
 			remapX[y*2] = minX;
@@ -648,16 +672,19 @@ void Undistort::makeOptimalK_crop()
 			remapY[y*2] = remapY[y*2+1] = minY + (maxY-minY) * (float)y / ((float)h-1.0f);
 		}
 		distortCoordinates(remapX, remapY,remapX, remapY,2*h);
+		// 如果还有不在图像范围内的, 则继续缩减
 		for(int y=0;y<h;y++)
 		{
+			// 最小的值即左侧要收缩
 			if(!(remapX[2*y] > 0 && remapX[2*y] < wOrg-1))
 				oobLeft = true;
+			// 最大值, 即右侧要收缩
 			if(!(remapX[2*y+1] > 0 && remapX[2*y+1] < wOrg-1))
 				oobRight = true;
 		}
 
 
-
+		//! 保证每个 X 坐标都和Y坐标的最大最小, 构成对应坐标
 		for(int x=0;x<w;x++)
 		{
 			remapY[x*2] = minY;
@@ -675,7 +702,7 @@ void Undistort::makeOptimalK_crop()
 				oobBottom = true;
 		}
 
-
+		//! 如果上下, 左右都超出去, 也只缩减最大的一侧
 		if((oobLeft || oobRight) && (oobTop || oobBottom))
 		{
 			if((maxX-minX) > (maxY-minY))
@@ -684,6 +711,7 @@ void Undistort::makeOptimalK_crop()
 				oobLeft = oobRight = false; // only shrink top/bottom
 		}
 
+		// 缩减
 		if(oobLeft) minX *= 0.995;
 		if(oobRight) maxX *= 0.995;
 		if(oobTop) minY *= 0.995;
@@ -693,13 +721,14 @@ void Undistort::makeOptimalK_crop()
 
 
 		printf("iteration %05d: range: x: %.4f - %.4f; y: %.4f - %.4f!\n", iteration,  minX, maxX, minY, maxY);
-		if(iteration > 500)
+		if(iteration > 500) // 迭代次数太多
 		{
 			printf("FAILED TO COMPUTE GOOD CAMERA MATRIX - SOMETHING IS SERIOUSLY WRONG. ABORTING \n");
 			exit(1);
 		}
 	}
-
+	
+	// 得到新的相机内参
 	K(0,0) = ((float)w-1.0f)/(maxX-minX);
 	K(1,1) = ((float)h-1.0f)/(maxY-minY);
 	K(0,2) = -minX*K(0,0);
@@ -713,6 +742,8 @@ void Undistort::makeOptimalK_full()
 	assert(false);
 }
 
+//@ 参数: 配置文件名, 参数个数, 相机模型名称
+//* 
 void Undistort::readFromFile(const char* configFileName, int nPars, std::string prefix)
 {
 	photometricUndist=0;
@@ -723,7 +754,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 	
 	float outputCalibration[5];
 
-	parsOrg = VecX(nPars);
+	parsOrg = VecX(nPars);  // 相机原始参数
 
 	// read parameters
 	std::ifstream infile(configFileName);
@@ -736,16 +767,20 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
     std::getline(infile,l3);
     std::getline(infile,l4);
 
+//* 第一行, 相机模型参数; 第二行, 相机像素大小
     // l1 & l2
     if(nPars == 5) // fov model
 	{
 		char buf[1000];
+		// 复制 prefix 最大1000个, 以%s格式, 到 buf (char) 数组, %%表示输出%
+		// 因此buf中是 "fov%lf %lf %lf %lf %lf"
 		snprintf(buf, 1000, "%s%%lf %%lf %%lf %%lf %%lf", prefix.c_str());
-
+		
+		// 使用buf做格式控制, 将l1输出到这5个参数
 		if(std::sscanf(l1.c_str(), buf, &parsOrg[0], &parsOrg[1], &parsOrg[2], &parsOrg[3], &parsOrg[4]) == 5 &&
-				std::sscanf(l2.c_str(), "%d %d", &wOrg, &hOrg) == 2)
+				std::sscanf(l2.c_str(), "%d %d", &wOrg, &hOrg) == 2) // 得到像素大小
 		{
-			printf("Input resolution: %d %d\n",wOrg, hOrg);
+			printf("Input resolution: %d %d\n",wOrg, hOrg); 
 			printf("In: %f %f %f %f %f\n",
 					parsOrg[0], parsOrg[1], parsOrg[2], parsOrg[3], parsOrg[4]);
 		}
@@ -786,14 +821,15 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 	}
 
 
-
+	// cx, cy 小于1, 则说明是个相对值, 乘上图像大小
     if(parsOrg[2] < 1 && parsOrg[3] < 1)
     {
         printf("\n\nFound fx=%f, fy=%f, cx=%f, cy=%f.\n I'm assuming this is the \"relative\" calibration file format,"
                "and will rescale this by image width / height to fx=%f, fy=%f, cx=%f, cy=%f.\n\n",
                parsOrg[0], parsOrg[1], parsOrg[2], parsOrg[3],
                parsOrg[0] * wOrg, parsOrg[1] * hOrg, parsOrg[2] * wOrg - 0.5, parsOrg[3] * hOrg - 0.5 );
-
+		
+		//?? 0.5 还是不是很理解, 为了使用积分来近似像素强度
         // rescale and substract 0.5 offset.
         // the 0.5 is because I'm assuming the calibration is given such that the pixel at (0,0)
         // contains the integral over intensity over [0,0]-[1,1], whereas I assume the pixel (0,0)
@@ -806,7 +842,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
     }
 
 
-
+//* 第三行, 相机图像类别, 是否裁切
 	// l3
 	if(l3 == "crop")
 	{
@@ -823,6 +859,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 		outputCalibration[0] = -3;
         printf("Out: No Rectification\n");
 	}
+	//? 这啥参数呢...
 	else if(std::sscanf(l3.c_str(), "%f %f %f %f %f", &outputCalibration[0], &outputCalibration[1], &outputCalibration[2], &outputCalibration[3], &outputCalibration[4]) == 5)
 	{
 		printf("Out: %f %f %f %f %f\n",
@@ -837,9 +874,11 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 	}
 
 
+//* 第四行, 图像的大小, 会根据设置进行裁切...
 	// l4
 	if(std::sscanf(l4.c_str(), "%d %d", &w, &h) == 2)
 	{
+		// 如果有设置的大小
 		if(benchmarkSetting_width != 0)
         {
 			w = benchmarkSetting_width;
@@ -864,6 +903,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
     remapX = new float[w*h];
     remapY = new float[w*h];
 
+//* 得到合适的相机参数
 	if(outputCalibration[0] == -1)
 		makeOptimalK_crop();
 	else if(outputCalibration[0] == -2)
@@ -880,25 +920,26 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
         K(1,1) = parsOrg[1];
         K(0,2) = parsOrg[2];
         K(1,2) = parsOrg[3];
-		passthrough = true;
+		passthrough = true; // 读取参数成功, 通过
 	}
 	else
 	{
 
-
+		// 标定输出错误
         if(outputCalibration[2] > 1 || outputCalibration[3] > 1)
         {
             printf("\n\n\nWARNING: given output calibration (%f %f %f %f) seems wrong. It needs to be relative to image width / height!\n\n\n",
                    outputCalibration[0],outputCalibration[1],outputCalibration[2],outputCalibration[3]);
         }
 
-
+		// 相对于长宽的比例值
 		K.setIdentity();
         K(0,0) = outputCalibration[0] * w;
         K(1,1) = outputCalibration[1] * h;
         K(0,2) = outputCalibration[2] * w - 0.5;
         K(1,2) = outputCalibration[3] * h - 0.5;
 	}
+
 
 	if(benchmarkSetting_fxfyfac != 0)
 	{
