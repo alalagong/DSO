@@ -90,12 +90,12 @@ public:
 protected:
     int w, h, wOrg, hOrg, wUp, hUp;	//!< 输入图像大小, 相机原像素大小, 
     int upsampleUndistFactor;
-	Mat33 K;						//!< 矫正后的相机参数( 也可能是更改了的标定输出)
+	Mat33 K;						//!< 矫正后的相机参数(也可能是更改了的标定输出)
 	VecX parsOrg;					//!< 原来相机参数
-	bool valid;
-	bool passthrough;				//!< 
+	bool valid;						//!< 参数有效
+	bool passthrough;				//!< 通过??? 不知道这个是干嘛的
 
-	float* remapX;
+	float* remapX;					//!< 矫正所用的remap, 无畸变与畸变的映射
 	float* remapY;
 
 	void applyBlurNoise(float* img) const;

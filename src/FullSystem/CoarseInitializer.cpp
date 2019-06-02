@@ -332,13 +332,7 @@ void CoarseInitializer::debugPlot(int lvl, std::vector<IOWrap::Output3DWrapper*>
 }
 
 
-/********************************
- * @ function:
- * 
- * @ param: 
- * 
- * @ note:
- *******************************/
+
 // calculates residual, Hessian and Hessian-block neede for re-substituting depth.
 Vec3f CoarseInitializer::calcResAndGS(
 		int lvl, Mat88f &H_out, Vec8f &b_out,
@@ -378,7 +372,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 		point->maxstep = 1e10;
 		if(!point->isGood)  // 点不好
 		{
-			E.updateSingle((float)(point->energy[0]));
+			E.updateSingle((float)(point->energy[0])); // 累加
 			point->energy_new = point->energy;
 			point->isGood_new = false;
 			continue;
@@ -405,14 +399,15 @@ Vec3f CoarseInitializer::calcResAndGS(
 			int dx = patternP[idx][0];
 			int dy = patternP[idx][1];
 
-			//! R*(X/Z, Y/Z, 1) + t/Z, 变换到新的点, 深度仍然使用Host帧的!
+			//! Pj' = R*(X/Z, Y/Z, 1) + t/Z, 变换到新的点, 深度仍然使用Host帧的!
 			Vec3f pt = RKi * Vec3f(point->u+dx, point->v+dy, 1) + t*point->idepth_new; 
-			// 归一化坐标
+			// 归一化坐标 Pj
 			float u = pt[0] / pt[2];
 			float v = pt[1] / pt[2];
-			// 像素坐标
+			// 像素坐标pj
 			float Ku = fxl * u + cxl;
 			float Kv = fyl * v + cyl;
+			// dpi/pz' 
 			float new_idepth = point->idepth_new/pt[2]; // 新一帧上的逆深度
 
 			// 落在边缘附近，深度小于0, 则不好
@@ -421,11 +416,11 @@ Vec3f CoarseInitializer::calcResAndGS(
 				isGood = false;
 				break;
 			}
-			// 插值得到新图像中的 patch 像素值，(输入3维，输出3维)
+			// 插值得到新图像中的 patch 像素值，(输入3维，输出3维像素值 + x方向梯度 + y方向梯度)
 			Vec3f hitColor = getInterpolatedElement33(colorNew, Ku, Kv, wl);
 			//Vec3f hitColor = getInterpolatedElement33BiCub(colorNew, Ku, Kv, wl);
 
-			// 参考帧上的 patch 上的像素值
+			// 参考帧上的 patch 上的像素值, 输出一维像素值
 			//float rlR = colorRef[point->u+dx + (point->v+dy) * wl][0];
 			float rlR = getInterpolatedElement31(colorRef, point->u+dx, point->v+dy, wl);
 
@@ -446,25 +441,32 @@ Vec3f CoarseInitializer::calcResAndGS(
 
 
 
-			//? 这是啥
+			// Pj 对 逆深度 di 求导
+			//! 1/Pz * (tx - u*tz), u = px/pz
 			float dxdd = (t[0]-t[2]*u)/pt[2];
+			//! 1/Pz * (ty - v*tz), u = py/pz
 			float dydd = (t[1]-t[2]*v)/pt[2];
 
-			if(hw < 1) hw = sqrtf(hw);
+			if(hw < 1) hw = sqrtf(hw); //?? 为啥开根号
+			//! dxfx, dyfy
 			float dxInterp = hw*hitColor[1]*fxl;
 			float dyInterp = hw*hitColor[2]*fyl;
-			dp0[idx] = new_idepth*dxInterp;
-			dp1[idx] = new_idepth*dyInterp;
-			dp2[idx] = -new_idepth*(u*dxInterp + v*dyInterp);
-			dp3[idx] = -u*v*dxInterp - (1+v*v)*dyInterp;
-			dp4[idx] = (1+u*u)*dxInterp + u*v*dyInterp;
-			dp5[idx] = -v*dxInterp + u*dyInterp;
-			dp6[idx] = - hw*r2new_aff[0] * rlR;
-			dp7[idx] = - hw*1;
-			dd[idx] = dxInterp * dxdd  + dyInterp * dydd;
-			r[idx] = hw*residual;
+			//* 残差对 j(新状态) 位姿求导, 
+			dp0[idx] = new_idepth*dxInterp; //! dpi/pz' * dxfx
+			dp1[idx] = new_idepth*dyInterp; //! dpi/pz' * dyfy
+			dp2[idx] = -new_idepth*(u*dxInterp + v*dyInterp); //! -dpi/pz' * (px'/pz'*dxfx + py'/pz'*dyfy)
+			dp3[idx] = -u*v*dxInterp - (1+v*v)*dyInterp; //! - px'py'/pz'^2*dxfy - (1+py'^2/pz'^2)*dyfy
+			dp4[idx] = (1+u*u)*dxInterp + u*v*dyInterp; //! (1+px'^2/pz'^2)*dxfx + px'py'/pz'^2*dxfy
+			dp5[idx] = -v*dxInterp + u*dyInterp; //! -py'/pz'*dxfx + px'/pz'*dyfy
+			//* 残差对光度参数求导
+			dp6[idx] = - hw*r2new_aff[0] * rlR; //! exp(aj-ai)*I(pi)
+			dp7[idx] = - hw*1;	//! 对 b 导
+			//* 残差对 i(旧状态) 逆深度求导
+			dd[idx] = dxInterp * dxdd  + dyInterp * dydd; 	//! dxfx * 1/Pz * (tx - u*tz) +　dyfy * 1/Pz * (tx - u*tz)
+			r[idx] = hw*residual; //! 残差 res
 
-			float maxstep = 1.0f / Vec2f(dxdd*fxl, dydd*fyl).norm();
+			//* 像素误差对逆深度的导数
+			float maxstep = 1.0f / Vec2f(dxdd*fxl, dydd*fyl).norm();  //? 为什么这么设置
 			if(maxstep < point->maxstep) point->maxstep = maxstep;
 
 			// immediately compute dp*dd' and dd*dd' in JbBuffer1.
@@ -741,7 +743,7 @@ void CoarseInitializer::propagateUp(int srcLvl)
 	optReg(srcLvl+1);
 }
 
-//* 使用上层信息来初始化下层
+//@ 使用上层信息来初始化下层
 //@ param: 当前的金字塔层+1
 //@ note: 没法初始化顶层值 
 void CoarseInitializer::propagateDown(int srcLvl)
@@ -899,7 +901,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 
 }
 
-//* 重置点的参数
+//@ 重置点的参数
 void CoarseInitializer::resetPoints(int lvl)
 {
 	Pnt* pts = points[lvl];
@@ -978,7 +980,7 @@ void CoarseInitializer::applyStep(int lvl)
 	std::swap<Vec10f*>(JbBuffer, JbBuffer_new);
 }
 
-//* 计算每个金字塔层的相机参数
+//@ 计算每个金字塔层的相机参数
 void CoarseInitializer::makeK(CalibHessian* HCalib)
 {
 	w[0] = wG[0];
@@ -1014,7 +1016,7 @@ void CoarseInitializer::makeK(CalibHessian* HCalib)
 
 
 
-//* 生成每一层点的KDTree, 并用其找到邻近点集和父点 
+//@ 生成每一层点的KDTree, 并用其找到邻近点集和父点 
 void CoarseInitializer::makeNN()
 {
 	const float NNDistFactor=0.05;

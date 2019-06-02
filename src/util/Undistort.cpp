@@ -655,7 +655,6 @@ void Undistort::makeOptimalK_crop()
 	printf("initial range: x: %.4f - %.4f; y: %.4f - %.4f!\n", minX, maxX, minY, maxY);
 
 
-	//?? 没懂???
 	// 2. while there are invalid pixels at the border: shrink square at the side that has invalid pixels,
 	// if several to choose from, shrink the wider dimension.
 	bool oobLeft=true, oobRight=true, oobTop=true, oobBottom=true;
@@ -671,7 +670,7 @@ void Undistort::makeOptimalK_crop()
 			remapX[y*2+1] = maxX;
 			remapY[y*2] = remapY[y*2+1] = minY + (maxY-minY) * (float)y / ((float)h-1.0f);
 		}
-		distortCoordinates(remapX, remapY,remapX, remapY,2*h);
+		distortCoordinates(remapX, remapY,remapX, remapY,2*h); // 加畸变变换到当前图像
 		// 如果还有不在图像范围内的, 则继续缩减
 		for(int y=0;y<h;y++)
 		{
@@ -932,7 +931,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
                    outputCalibration[0],outputCalibration[1],outputCalibration[2],outputCalibration[3]);
         }
 
-		// 相对于长宽的比例值
+		// 相对于长宽的比例值（TUMmono这样）
 		K.setIdentity();
         K(0,0) = outputCalibration[0] * w;
         K(1,1) = outputCalibration[1] * h;
@@ -940,7 +939,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
         K(1,2) = outputCalibration[3] * h - 0.5;
 	}
 
-
+	// 设置了fx和fy，则取最好的
 	if(benchmarkSetting_fxfyfac != 0)
 	{
 		K(0,0) = fmax(benchmarkSetting_fxfyfac, (float)K(0,0));
@@ -948,7 +947,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
         passthrough = false; // cannot pass through when fx / fy have been overwritten.
 	}
 
-
+//* 计算图像矫正的remapX和remapY
 	for(int y=0;y<h;y++)
 		for(int x=0;x<w;x++)
 		{
@@ -994,6 +993,7 @@ void Undistort::readFromFile(const char* configFileName, int nPars, std::string 
 }
 
 
+//********************* 以下都是加畸变的算法 *******************************
 UndistortFOV::UndistortFOV(const char* configFileName, bool noprefix)
 {
     printf("Creating FOV undistorter\n");
@@ -1006,7 +1006,7 @@ UndistortFOV::UndistortFOV(const char* configFileName, bool noprefix)
 UndistortFOV::~UndistortFOV()
 {
 }
-
+//* FOV加畸变
 void UndistortFOV::distortCoordinates(float* in_x, float* in_y, float* out_x, float* out_y, int n) const
 {
 	float dist = parsOrg[4];
