@@ -63,16 +63,18 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 			Mat88 AH = Mat88::Identity();
 			Mat88 AT = Mat88::Identity();
 			
-			//TODO 伴随的公式是什么???
+			// 见笔记推导吧, 或者https://www.cnblogs.com/JingeTU/p/9077372.html
 			AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
 			AT.topLeftCorner<6,6>() = Mat66::Identity();
 
-			// 光度参数
+			// 光度参数, 合并项对参数求导
+			//! E = Ij - tj*exp(aj) / ti*exp(ai) * Ii - (bj - tj*exp(aj) / ti*exp(ai) * bi)
+			//! a = - tj*exp(aj) / ti*exp(ai),  b = - (bj - tj*exp(aj) / ti*exp(ai) * bi)
 			Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
-			AT(6,6) = -affLL[0];
-			AH(6,6) = affLL[0];
-			AT(7,7) = -1;
-			AH(7,7) = affLL[0];
+			AT(6,6) = -affLL[0]; //! a'(aj)
+			AH(6,6) = affLL[0];	 //! a'(ai)
+			AT(7,7) = -1;		 //! b'(bj)
+			AH(7,7) = affLL[0];	 //! b'(bi)
 
 			AH.block<3,8>(0,0) *= SCALE_XI_TRANS;
 			AH.block<3,8>(3,0) *= SCALE_XI_ROT;
