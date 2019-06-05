@@ -256,24 +256,24 @@ private:
 
 
 	// =================== changed by tracker-thread. protected by trackMutex ============
-	boost::mutex trackMutex;
+	boost::mutex trackMutex;		//!< tracking线程锁
 	std::vector<FrameShell*> allFrameHistory;
 	CoarseInitializer* coarseInitializer;
 	Vec5 lastCoarseRMSE;
 
 
 	// ================== changed by mapper-thread. protected by mapMutex ===============
-	boost::mutex mapMutex;
+	boost::mutex mapMutex;			//!< Mapping 线程锁
 	std::vector<FrameShell*> allKeyFramesHistory;
 
-	EnergyFunctional* ef;
+	EnergyFunctional* ef;			//!< 能量方程
 	IndexThreadReduce<Vec10> treadReduce;
 
 	float* selectionMap;
 	PixelSelector* pixelSelector;
 	CoarseDistanceMap* coarseDistanceMap;
 
-	std::vector<FrameHessian*> frameHessians;	// ONLY changed in marginalizeFrame and addFrame.
+	std::vector<FrameHessian*> frameHessians;	//!< 关键帧 // ONLY changed in marginalizeFrame and addFrame.
 	std::vector<PointFrameResidual*> activeResiduals;
 	float currentMinActDist;
 

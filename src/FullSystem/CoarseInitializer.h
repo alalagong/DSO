@@ -53,16 +53,16 @@ public:
 	Vec2f energy;				//!< [0]残差的平方, [1]正则化项(逆深度减一的平方) // (UenergyPhotometric, energyRegularizer)	
 	bool isGood_new;
 	float idepth_new;			//!< 该点在新的一帧(当前帧)上的逆深度
-	Vec2f energy_new;			//!< 
+	Vec2f energy_new;			//!< 迭代计算的新的能量
 
-	float iR;					//!< 
-	float iRSumNum;
+	float iR;					//!< 逆深度的期望值
+	float iRSumNum;				//!< 子点逆深度信息矩阵之和
 
 	float lastHessian;			//!< 逆深度的Hessian, 即协方差, dd*dd
 	float lastHessian_new;		//!< 新一次迭代的协方差
 
 	// max stepsize for idepth (corresponding to max. movement in pixel-space).
-	float maxstep;				//!< 
+	float maxstep;				//!< 逆深度增加的最大步长
 
 	// idx (x+y*w) of closest point one pyramid level above.
 	int parent;		  			//!< 上一层中该点的父节点 (距离最近的)的id
@@ -114,8 +114,8 @@ private:
 	int h[PYR_LEVELS];
 	void makeK(CalibHessian* HCalib);
 
-	bool snapped;					//!< 
-	int snappedAt;
+	bool snapped;					//!< 是否尺度收敛 (暂定)
+	int snappedAt;					//!< 尺度收敛在第几帧
 
 	// pyramid images & levels on all levels
 	Eigen::Vector3f* dINew[PYR_LEVELS];
@@ -124,16 +124,17 @@ private:
 	Eigen::DiagonalMatrix<float, 8> wM;
 
 	// temporary buffers for H and b.
-	Vec10f* JbBuffer;			// 0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.
-	Vec10f* JbBuffer_new;		//!< 
+	Vec10f* JbBuffer;			//!< 用来计算Schur的 0-7: sum(dd * dp). 8: sum(res*dd). 9: 1/(1+sum(dd*dd))=inverse hessian entry.
+	Vec10f* JbBuffer_new;		//!< 跌待更新后新的值
 
 	//* 9维向量, 乘积获得9*9矩阵, 并做的累加器
 	Accumulator9 acc9;			//!< Hessian 矩阵
-	Accumulator9 acc9SC;
+	Accumulator9 acc9SC;		//!< Schur部分Hessian
 
 
 	Vec3f dGrads[PYR_LEVELS];		//!< 
 
+	//? 这几个参数很迷
 	float alphaK;					//!< 2.5*2.5
 	float alphaW;					//!< 150*150
 	float regWeight;				//!< 对逆深度的加权值, 0.8

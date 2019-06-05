@@ -76,7 +76,7 @@ public:
 
 	// structural pointers
 	PointFrameResidual* data;
-	int hostIDX, targetIDX;
+	int hostIDX, targetIDX;  		//!< 残差对应的 host 和 Target ID号
 	EFPoint* point;
 	EFFrame* host;
 	EFFrame* target;
@@ -152,16 +152,17 @@ public:
 
 
 	Vec8 prior;				// prior hessian (diagonal)
-	Vec8 delta_prior;		// = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
+	Vec8 delta_prior;		//!<    // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
 	Vec8 delta;				// state - state_zero.
 
 
 
 	std::vector<EFPoint*> points;
 	FrameHessian* data;
-	int idx;	// idx in frames.
+	//? 和FrameHessian中的idx有啥不同
+	int idx;			//!< 在能量函数中帧id // idx in frames.
 
-	int frameID;
+	int frameID;  		//!< 所有历史帧ID 
 };
 
 }

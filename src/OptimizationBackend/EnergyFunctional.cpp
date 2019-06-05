@@ -38,11 +38,12 @@ namespace dso
 {
 
 
-bool EFAdjointsValid = false;
-bool EFIndicesValid = false;
+bool EFAdjointsValid = false;		//!< 是否设置状态伴随矩阵
+bool EFIndicesValid = false;		//!< 是否设置frame, point, res的ID
 bool EFDeltaValid = false;
 
-
+//* 计算adHost(F), adTarget(F)
+// 传的参数也没用啊
 void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 {
 
@@ -51,8 +52,8 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 	adHost = new Mat88[nFrames*nFrames];
 	adTarget = new Mat88[nFrames*nFrames];
 
-	for(int h=0;h<nFrames;h++)
-		for(int t=0;t<nFrames;t++)
+	for(int h=0;h<nFrames;h++) // 主帧
+		for(int t=0;t<nFrames;t++) // 目标帧
 		{
 			FrameHessian* host = frames[h]->data;
 			FrameHessian* target = frames[t]->data;
@@ -61,11 +62,12 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 
 			Mat88 AH = Mat88::Identity();
 			Mat88 AT = Mat88::Identity();
-
+			
+			//TODO 伴随的公式是什么???
 			AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
 			AT.topLeftCorner<6,6>() = Mat66::Identity();
 
-
+			// 光度参数
 			Vec2f affLL = AffLight::fromToVecExposure(host->ab_exposure, target->ab_exposure, host->aff_g2l_0(), target->aff_g2l_0()).cast<float>();
 			AT(6,6) = -affLL[0];
 			AH(6,6) = affLL[0];
@@ -78,7 +80,7 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 			AH.block<1,8>(7,0) *= SCALE_B;
 			AT.block<3,8>(0,0) *= SCALE_XI_TRANS;
 			AT.block<3,8>(3,0) *= SCALE_XI_ROT;
-			AT.block<1,8>(6,0) *= SCALE_A;
+			AT.block<1,8>(6,0) *= SCALE_A;    //? 已经是乘过的, 怎么又乘一遍
 			AT.block<1,8>(7,0) *= SCALE_B;
 
 			adHost[h+t*nFrames] = AH;
@@ -86,7 +88,7 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 		}
 	cPrior = VecC::Constant(setting_initialCalibHessian);
 
-
+	// float型
 	if(adHostF != 0) delete[] adHostF;
 	if(adTargetF != 0) delete[] adTargetF;
 	adHostF = new Mat88f[nFrames*nFrames];
@@ -426,18 +428,23 @@ EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 	r->efResidual = efr;
 	return efr;
 }
+
+//* 向能量函数中增加一帧, 进行的操作: 改变正规方程, 重新排ID, 共视关系
 EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 {
+	// 建立优化用的能量函数帧. 并加进能量函数frames中
 	EFFrame* eff = new EFFrame(fh);
-	eff->idx = frames.size();
+	eff->idx = frames.size(); 
 	frames.push_back(eff);
 
 	nFrames++;
-	fh->efFrame = eff;
+	fh->efFrame = eff; // FrameHessian 指向能量函数帧
 
-	assert(HM.cols() == 8*nFrames+CPARS-8);
+	assert(HM.cols() == 8*nFrames+CPARS-8);  // 边缘化掉一帧, 缺8个
+	// 一个帧8个参数 + 相机内参
 	bM.conservativeResize(8*nFrames+CPARS);
 	HM.conservativeResize(8*nFrames+CPARS,8*nFrames+CPARS);
+	// 新帧的块为0
 	bM.tail<8>().setZero();
 	HM.rightCols<8>().setZero();
 	HM.bottomRows<8>().setZero();
@@ -446,12 +453,13 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	EFAdjointsValid=false;
 	EFDeltaValid=false;
 
-	setAdjointsF(Hcalib);
-	makeIDX();
+	setAdjointsF(Hcalib); 	// 设置伴随矩阵
+	makeIDX();				// 设置ID
 
 
 	for(EFFrame* fh2 : frames)
 	{
+		// 前32位是host帧的历史ID, 后32位是Target的历史ID
         connectivityMap[(((uint64_t)eff->frameID) << 32) + ((uint64_t)fh2->frameID)] = Eigen::Vector2i(0,0);
 		if(fh2 != eff)
             connectivityMap[(((uint64_t)fh2->frameID) << 32) + ((uint64_t)eff->frameID)] = Eigen::Vector2i(0,0);
@@ -911,20 +919,24 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 }
+
+//* 设置EFFrame, EFPoint, EFResidual对应的 ID 号
 void EnergyFunctional::makeIDX()
 {
+	// 重新赋值ID
 	for(unsigned int idx=0;idx<frames.size();idx++)
 		frames[idx]->idx = idx;
 
 	allPoints.clear();
 
 	for(EFFrame* f : frames)
-		for(EFPoint* p : f->points)
+		for(EFPoint* p : f->points) //? points 在哪设置的
 		{
 			allPoints.push_back(p);
+			// 残差的ID号
 			for(EFResidual* r : p->residualsAll)
 			{
-				r->hostIDX = r->host->idx;
+				r->hostIDX = r->host->idx;  // EFFrame的idx
 				r->targetIDX = r->target->idx;
 			}
 		}

@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "*.ipp": "cpp"
+        "*.ipp": "cpp",
+        "bitset": "cpp"
     }
 }

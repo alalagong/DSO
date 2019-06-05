@@ -1218,11 +1218,11 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	boost::unique_lock<boost::mutex> lock(mapMutex);
 
 	// add firstframe.
-	FrameHessian* firstFrame = coarseInitializer->firstFrame;
-	firstFrame->idx = frameHessians.size();
-	frameHessians.push_back(firstFrame);
-	firstFrame->frameID = allKeyFramesHistory.size();
-	allKeyFramesHistory.push_back(firstFrame->shell);
+	FrameHessian* firstFrame = coarseInitializer->firstFrame;  // 第一帧增加进地图
+	firstFrame->idx = frameHessians.size(); // 赋值给它id (0开始)
+	frameHessians.push_back(firstFrame);  	// 地图内关键帧容器
+	firstFrame->frameID = allKeyFramesHistory.size();  	// 所有历史关键帧id
+	allKeyFramesHistory.push_back(firstFrame->shell); 	// 所有历史关键帧
 	ef->insertFrame(firstFrame, &Hcalib);
 	setPrecalcValues();
 
@@ -1333,9 +1333,9 @@ void FullSystem::setPrecalcValues()
 {
 	for(FrameHessian* fh : frameHessians)
 	{
-		fh->targetPrecalc.resize(frameHessians.size());
-		for(unsigned int i=0;i<frameHessians.size();i++)
-			fh->targetPrecalc[i].set(fh, frameHessians[i], &Hcalib);
+		fh->targetPrecalc.resize(frameHessians.size()); // 每个目标帧预运算容器, 大小是关键帧数
+		for(unsigned int i=0;i<frameHessians.size();i++) 
+			fh->targetPrecalc[i].set(fh, frameHessians[i], &Hcalib); // 计算Host 与 target之间的变换关系
 	}
 
 	ef->setDeltaF(&Hcalib);

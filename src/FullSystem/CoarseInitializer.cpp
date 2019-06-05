@@ -282,7 +282,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
     debugPlot(0,wraps);
 
 
-
+	// 尺度收敛后, 再优化5帧才行
 	return snapped && frameID > snappedAt+5;
 }
 

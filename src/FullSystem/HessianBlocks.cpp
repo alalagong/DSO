@@ -199,6 +199,7 @@ void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessi
 	this->host = host;    // 这个是赋值, 计数会增加, 不是拷贝
 	this->target = target;
 	
+	//? 实在不懂leftToleft_0这个名字怎么个含义
 	// 优化前
 	SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
 	PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();

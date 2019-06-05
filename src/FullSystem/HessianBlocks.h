@@ -86,15 +86,15 @@ struct FrameFramePrecalc
 	FrameHessian* host;	// defines row
 	FrameHessian* target;	// defines column
 
-	//? 实在不懂leftToleft_0这个名字怎么个含义
+	
 	// precalc values
-	Mat33f PRE_RTll; // target和host之间优化后旋转矩阵 R
+	Mat33f PRE_RTll; // host 到 target 之间优化后旋转矩阵 R
 	Mat33f PRE_KRKiTll; // k*R*k_inv
 	Mat33f PRE_RKiTll;  // R*k_inv
-	Mat33f PRE_RTll_0; // target和host之间初始的旋转矩阵, 优化更新前
+	Mat33f PRE_RTll_0; // host 到 target之间初始的旋转矩阵, 优化更新前
 
 	Vec2f PRE_aff_mode; // 能量函数对仿射系数处理后的, 总系数
-	float PRE_b0_mode; // host的光度仿射系数
+	float PRE_b0_mode; // host的光度仿射系数b
 
 	Vec3f PRE_tTll; // target和host之间优化后的平移 t
 	Vec3f PRE_KtTll; // K*t
@@ -130,10 +130,10 @@ struct FrameHessian
 
 
 
-
-	int frameID;						// incremental ID for keyframes only!
+	//* 都是ID
+	int frameID;					//!< 所有关键帧的序号(FrameShell)	// incremental ID for keyframes only!
 	static int instanceCounter;		//!< 计数器
-	int idx;
+	int idx;						//!< 激活关键帧的序号(FrameHessian)
 
 	// Photometric Calibration Stuff
 	float frameEnergyTH;	//!< 阈值 // set dynamically depending on tracking residual
@@ -172,7 +172,7 @@ struct FrameHessian
 	// precalc values
 	SE3 PRE_worldToCam;			//!< 预计算的, 位姿状态增量更新到位姿上
 	SE3 PRE_camToWorld;
-	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc;
+	std::vector<FrameFramePrecalc,Eigen::aligned_allocator<FrameFramePrecalc>> targetPrecalc; //!< 对于其它帧的预运算值
 	MinimalImageB3* debugImage;	//!< 小图???
 
 

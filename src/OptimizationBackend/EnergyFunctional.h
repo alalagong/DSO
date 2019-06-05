@@ -95,11 +95,11 @@ public:
 
 	void setAdjointsF(CalibHessian* Hcalib);
 
-	std::vector<EFFrame*> frames;
-	int nPoints, nFrames, nResiduals;
+	std::vector<EFFrame*> frames;  		//!< 能量函数中的帧
+	int nPoints, nFrames, nResiduals;	//!< , 关键帧数, 
 
-	MatXX HM;
-	VecX bM;
+	MatXX HM;					//!< 优化的Hessian矩阵
+	VecX bM;					//!< 优化的Jr项
 
 	int resInA, resInL, resInM;
 	MatXX lastHS;
@@ -114,11 +114,11 @@ public:
 	IndexThreadReduce<Vec10>* red;
 
 
-	std::map<uint64_t,
+	std::map<uint64_t, // 历史ID
 	  Eigen::Vector2i,
-	  std::less<uint64_t>,
-	  Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>>
-	  > connectivityMap;
+	  std::less<uint64_t>, 
+	  Eigen::aligned_allocator<std::pair<const uint64_t, Eigen::Vector2i>> // 64位对齐
+	  > connectivityMap; 			//!< 关键帧之间的连接关系, 前32表示host ID, 后32位表示target ID
 
 private:
 
@@ -134,18 +134,19 @@ private:
 	void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
 	void orthogonalize(VecX* b, MatXX* H);
-	Mat18f* adHTdeltaF;
+	Mat18f* adHTdeltaF;		//!< 
 
-	Mat88* adHost;
+
+	Mat88* adHost; 					//!< 伴随矩阵, double
 	Mat88* adTarget;
 
-	Mat88f* adHostF;
+	Mat88f* adHostF;				//!< 伴随矩阵, float
 	Mat88f* adTargetF;
 
 
-	VecC cPrior;
+	VecC cPrior;		//? setting_initialCalibHessian 信息矩阵 
 	VecCf cDeltaF;
-	VecCf cPriorF;
+	VecCf cPriorF;	// float型
 
 	AccumulatedTopHessianSSE* accSSE_top_L;
 	AccumulatedTopHessianSSE* accSSE_top_A;
@@ -153,7 +154,7 @@ private:
 
 	AccumulatedSCHessianSSE* accSSE_bot;
 
-	std::vector<EFPoint*> allPoints;
+	std::vector<EFPoint*> allPoints;		
 	std::vector<EFPoint*> allPointsToMarg;
 
 	float currentLambda;
