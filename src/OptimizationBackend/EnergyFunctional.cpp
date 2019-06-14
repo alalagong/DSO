@@ -88,7 +88,7 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 			adHost[h+t*nFrames] = AH;
 			adTarget[h+t*nFrames] = AT;
 		}
-	cPrior = VecC::Constant(setting_initialCalibHessian);
+	cPrior = VecC::Constant(setting_initialCalibHessian); // 常数矩阵
 
 	// float型
 	if(adHostF != 0) delete[] adHostF;
@@ -171,7 +171,7 @@ EnergyFunctional::~EnergyFunctional()
 
 
 
-
+//* 计算各种状态的增量
 void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 {
 	if(adHTdeltaF != 0) delete[] adHTdeltaF;
@@ -180,18 +180,21 @@ void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 		for(int t=0;t<nFrames;t++)
 		{
 			int idx = h+t*nFrames;
+			//! delta_th = Adj * delta_t or delta_th = Adj * delta_h
+			// 加一起应该是, 两帧之间位姿变换的增量
 			adHTdeltaF[idx] = frames[h]->data->get_state_minus_stateZero().head<8>().cast<float>().transpose() * adHostF[idx]
 					        +frames[t]->data->get_state_minus_stateZero().head<8>().cast<float>().transpose() * adTargetF[idx];
 		}
 
-	cDeltaF = HCalib->value_minus_value_zero.cast<float>();
+	cDeltaF = HCalib->value_minus_value_zero.cast<float>(); // 相机内参增量
+
 	for(EFFrame* f : frames)
 	{
-		f->delta = f->data->get_state_minus_stateZero().head<8>();
-		f->delta_prior = (f->data->get_state() - f->data->getPriorZero()).head<8>();
+		f->delta = f->data->get_state_minus_stateZero().head<8>();  // 帧位姿增量
+		f->delta_prior = (f->data->get_state() - f->data->getPriorZero()).head<8>(); // 先验增量
 
 		for(EFPoint* p : f->points)
-			p->deltaF = p->data->idepth-p->data->idepth_zero;
+			p->deltaF = p->data->idepth-p->data->idepth_zero; // 逆深度的增量
 	}
 
 	EFDeltaValid = true;
@@ -469,6 +472,7 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 
 	return eff;
 }
+
 EFPoint* EnergyFunctional::insertPoint(PointHessian* ph)
 {
 	EFPoint* efp = new EFPoint(ph, ph->host->efFrame);

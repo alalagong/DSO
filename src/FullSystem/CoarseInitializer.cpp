@@ -582,8 +582,9 @@ Vec3f CoarseInitializer::calcResAndGS(
 		point->lastHessian_new = JbBuffer_new[i][9]; // 对逆深度 dd*dd
 
 		//? 这又是啥??? 对逆深度的值进行加权? 深度值归一化?
+		// 前面Energe加上了（d-1)*(d-1), 所以dd = 1， r += (d-1)
 		JbBuffer_new[i][8] += alphaOpt*(point->idepth_new - 1); // r*dd
-		JbBuffer_new[i][9] += alphaOpt; // 对逆深度导数为1
+		JbBuffer_new[i][9] += alphaOpt; // 对逆深度导数为1 // dd*dd
 
 		if(alphaOpt==0)
 		{
@@ -609,6 +610,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 	b_out_sc = acc9SC.H.topRightCorner<8,1>();// / acc9.num;	!(dp*dd)^T*(dd*dd)^-1*(dp^T*r)
 
 	//??? 啥意思
+	// t*t*ntps
 	// 给 t 对应的Hessian, 对角线加上一个数, b也加上
 	H_out(0,0) += alphaOpt*npts;
 	H_out(1,1) += alphaOpt*npts;

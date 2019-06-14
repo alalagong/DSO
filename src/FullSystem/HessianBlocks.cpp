@@ -200,13 +200,13 @@ void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessi
 	this->target = target;
 	
 	//? 实在不懂leftToleft_0这个名字怎么个含义
-	// 优化前
+	// 优化前host target间位姿变换
 	SE3 leftToLeft_0 = target->get_worldToCam_evalPT() * host->get_worldToCam_evalPT().inverse();
 	PRE_RTll_0 = (leftToLeft_0.rotationMatrix()).cast<float>();
 	PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
 
 
-	// 优化后
+	// 优化后host target间位姿变换
 	SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
 	PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
 	PRE_tTll = (leftToLeft.translation()).cast<float>();

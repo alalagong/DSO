@@ -415,7 +415,7 @@ struct CalibHessian
 	}
 };
 
-//*
+//* 点Hessian
 // hessian component associated with one point.
 struct PointHessian
 {

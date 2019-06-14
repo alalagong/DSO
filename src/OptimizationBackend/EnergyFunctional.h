@@ -134,7 +134,7 @@ private:
 	void calcLEnergyPt(int min, int max, Vec10* stats, int tid);
 
 	void orthogonalize(VecX* b, MatXX* H);
-	Mat18f* adHTdeltaF;		//!< 
+	Mat18f* adHTdeltaF;				//!< host和target之间位姿的增量
 
 
 	Mat88* adHost; 					//!< 伴随矩阵, double
