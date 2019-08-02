@@ -155,7 +155,7 @@ FullSystem::FullSystem()
 	statistics_numMargResFwd = 0;
 	statistics_numMargResBwd = 0;
 
-	lastCoarseRMSE.setConstant(100); //都=100
+	lastCoarseRMSE.setConstant(100); //5维向量都=100
 
 	currentMinActDist=2;
 	initialized=false;
@@ -222,6 +222,7 @@ void FullSystem::setOriginalCalib(const VecXf &originalCalib, int originalW, int
 
 }
 
+//* 设置相机响应函数
 void FullSystem::setGammaFunction(float* BInv)
 {
 	if(BInv==0) return;
