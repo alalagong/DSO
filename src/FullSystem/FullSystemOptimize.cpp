@@ -475,7 +475,7 @@ float FullSystem::optimize(int mnumOptIts)
 		backupState(iteration!=0);
 		//solveSystemNew(0);
 		solveSystem(iteration, lambda);
-		double incDirChange = (1e-20 + previousX.dot(ef->lastX)) / (1e-20 + previousX.norm() * ef->lastX.norm());
+		double incDirChange = (1e-20 + previousX.dot(ef->lastX)) / (1e-20 + previousX.norm() * ef->lastX.norm()); // 两次下降方向的点击（dot/模长）
 		previousX = ef->lastX;
 
 

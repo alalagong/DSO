@@ -354,7 +354,7 @@ void CoarseTracker::calcGSSSE(int lvl, Mat88 &H_out, Vec8 &b_out, const SE3 &ref
 
 
 
-
+//@ 
 Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, float cutoffTH)
 {
 	float E = 0;
@@ -508,7 +508,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	rs[2] = sumSquaredShiftT/(sumSquaredShiftNum+0.1);
 	rs[3] = 0;
 	rs[4] = sumSquaredShiftRT/(sumSquaredShiftNum+0.1);
-	rs[5] = numSaturated / (float)numTermsInE;
+	rs[5] = numSaturated / (float)numTermsInE;   // 大于cutoff阈值的百分比
 
 	return rs;
 }
@@ -533,6 +533,8 @@ void CoarseTracker::setCoarseTrackingRef(
 	firstCoarseRMSE=-1;
 
 }
+
+//@  
 bool CoarseTracker::trackNewestCoarse(
 		FrameHessian* newFrameHessian,
 		SE3 &lastToNew_out, AffLight &aff_g2l_out,
@@ -556,7 +558,7 @@ bool CoarseTracker::trackNewestCoarse(
 	SE3 refToNew_current = lastToNew_out;
 	AffLight aff_g2l_current = aff_g2l_out;
 
-	bool haveRepeated = false;
+	bool haveRepeated = false;  // 是否重复计算
 
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)
@@ -564,9 +566,9 @@ bool CoarseTracker::trackNewestCoarse(
 		Mat88 H; Vec8 b;
 		float levelCutoffRepeat=1;
 		Vec6 resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
-		while(resOld[5] > 0.6 && levelCutoffRepeat < 50)
+		while(resOld[5] > 0.6 && levelCutoffRepeat < 50) 
 		{
-			levelCutoffRepeat*=2;
+			levelCutoffRepeat*=2;		// 超过阈值的多, 则放大阈值重新计算
 			resOld = calcRes(lvl, refToNew_current, aff_g2l_current, setting_coarseCutoffTH*levelCutoffRepeat);
 
             if(!setting_debugout_runquiet)
@@ -688,7 +690,7 @@ bool CoarseTracker::trackNewestCoarse(
 
 		if(levelCutoffRepeat > 1 && !haveRepeated)
 		{
-			lvl++;
+			lvl++;			// 这一层重新算一遍
 			haveRepeated=true;
 			printf("REPEAT LEVEL!\n");
 		}

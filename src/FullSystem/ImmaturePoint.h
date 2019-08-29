@@ -64,7 +64,7 @@ public:
 
 
 
-	Mat22f gradH;
+	Mat22f gradH;				//!< 图像梯度hessian矩阵
 	Vec2f gradH_ev;
 	Mat22f gradH_eig;
 	float energyTH;

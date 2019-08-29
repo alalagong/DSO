@@ -152,7 +152,6 @@ public:
 
 		undistort = Undistort::getUndistorterForFile(calibFile, gammaFile, vignetteFile);
 
-
 		widthOrg = undistort->getOriginalSize()[0];
 		heightOrg = undistort->getOriginalSize()[1];
 		width=undistort->getSize()[0];
@@ -170,7 +169,6 @@ public:
 		if(ziparchive!=0) zip_close(ziparchive);
 		if(databuffer!=0) delete databuffer;
 #endif
-
 
 		delete undistort;
 	};

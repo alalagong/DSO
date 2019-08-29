@@ -104,11 +104,11 @@ void PixelSelector::makeHists(const FrameHessian* const fh)
 				int jt = j+32*y;
 				if(it>w-2 || jt>h-2 || it<1 || jt<1) continue; //内
 				int g = sqrtf(map0[i+j*w]); // 梯度平方和开根号
-				if(g>48) g=48; //? 为啥是48这个数
+				if(g>48) g=48; //? 为啥是48这个数，因为一共分为了50格
 				hist0[g+1]++; // 1-49 存相应梯度个数
 				hist0[0]++;  // 所有的像素个数
 			}
-			// 得到阈值
+			// 得到每一block的阈值
 			ths[x+y*w32] = computeHistQuantil(hist0,setting_minGradHistCut) + setting_minGradHistAdd;
 		}
 
@@ -470,8 +470,9 @@ Eigen::Vector3i PixelSelector::select(const FrameHessian* const fh,
 				if(bestIdx2>0)
 				{
 					map_out[bestIdx2] = 1;
-					//bug 这个好像没什么用...., 上面直接就continue了
-					bestVal3 = 1e10;  // 第0层找到了, 就不在高层找了 ,
+					// 高层pot中有更好的了，满足更严格要求的，就不用满足pixelTH1的了
+                    // bug bestVal3没有什么用，因为bestIdx3=-2直接continue了
+					bestVal3 = 1e10;  // 第0层找到了, 就不在高层找了
 					n2++; // 计数
 				}
 			}

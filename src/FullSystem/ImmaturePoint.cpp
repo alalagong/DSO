@@ -29,6 +29,7 @@
 
 namespace dso
 {
+//! 这里u_ v_ 是加了0.5的
 ImmaturePoint::ImmaturePoint(int u_, int v_, FrameHessian* host_, float type, CalibHessian* HCalib)
 : u(u_), v(v_), host(host_), my_type(type), idepth_min(0), idepth_max(NAN), lastTraceStatus(IPS_UNINITIALIZED)
 {
@@ -40,14 +41,15 @@ ImmaturePoint::ImmaturePoint(int u_, int v_, FrameHessian* host_, float type, Ca
 		int dx = patternP[idx][0];
 		int dy = patternP[idx][1];
 
-        Vec3f ptc = getInterpolatedElement33BiLin(host->dI, u+dx, v+dy,wG[0]);
+		// 由于+0.5导致积分, 插值得到值3个 [像素值, dx, dy]
+        Vec3f ptc = getInterpolatedElement33BiLin(host->dI, u+dx, v+dy,wG[0]); 
 
 
 
 		color[idx] = ptc[0];
 		if(!std::isfinite(color[idx])) {energyTH=NAN; return;}
 
-
+		// 梯度矩阵[dx*2, dxdy; dydx, dy^2]
 		gradH += ptc.tail<2>()  * ptc.tail<2>().transpose();
 
 		weights[idx] = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + ptc.tail<2>().squaredNorm()));

@@ -167,7 +167,7 @@ public:
 	void setOriginalCalib(const VecXf &originalCalib, int originalW, int originalH);
 
 private:
-
+	// 创建就通过global赋值，可以用sharedptr
 	CalibHessian Hcalib;
 
 

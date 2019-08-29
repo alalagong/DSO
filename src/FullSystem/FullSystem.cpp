@@ -295,30 +295,31 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 
 	std::vector<SE3,Eigen::aligned_allocator<SE3>> lastF_2_fh_tries;
 	if(allFrameHistory.size() == 2)
-		for(unsigned int i=0;i<lastF_2_fh_tries.size();i++) lastF_2_fh_tries.push_back(SE3());
+		for(unsigned int i=0;i<lastF_2_fh_tries.size();i++) lastF_2_fh_tries.push_back(SE3());  //? 这个size()不应该是0么
 	else
 	{
-		FrameShell* slast = allFrameHistory[allFrameHistory.size()-2];
-		FrameShell* sprelast = allFrameHistory[allFrameHistory.size()-3];
+		FrameShell* slast = allFrameHistory[allFrameHistory.size()-2];   // 上一帧
+		FrameShell* sprelast = allFrameHistory[allFrameHistory.size()-3];  // 大上一帧
 		SE3 slast_2_sprelast;
 		SE3 lastF_2_slast;
 		{	// lock on global pose consistency!
 			boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
-			slast_2_sprelast = sprelast->camToWorld.inverse() * slast->camToWorld;
-			lastF_2_slast = slast->camToWorld.inverse() * lastF->shell->camToWorld;
+			slast_2_sprelast = sprelast->camToWorld.inverse() * slast->camToWorld;  // 上一帧和大上一帧的运动
+			lastF_2_slast = slast->camToWorld.inverse() * lastF->shell->camToWorld;	// 参考帧到上一帧运动
 			aff_last_2_l = slast->aff_g2l;
 		}
-		SE3 fh_2_slast = slast_2_sprelast;// assumed to be the same as fh_2_slast.
+		SE3 fh_2_slast = slast_2_sprelast;// assumed to be the same as fh_2_slast. // 当前帧到上一帧 = 上一帧和大上一帧的
 
-
+		//! 尝试不同的运动
 		// get last delta-movement.
+		//? 这个lastF指的是啥到底 ???
 		lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast);	// assume constant motion.
 		lastF_2_fh_tries.push_back(fh_2_slast.inverse() * fh_2_slast.inverse() * lastF_2_slast);	// assume double motion (frame skipped)
 		lastF_2_fh_tries.push_back(SE3::exp(fh_2_slast.log()*0.5).inverse() * lastF_2_slast); // assume half motion.
 		lastF_2_fh_tries.push_back(lastF_2_slast); // assume zero motion.
 		lastF_2_fh_tries.push_back(SE3()); // assume zero motion FROM KF.
 
-
+		//! 尝试不同的旋转变动
 		// just try a TON of different initializations (all rotations). In the end,
 		// if they don't work they will only be tried on the coarsest level, which is super fast anyway.
 		// also, if tracking rails here we loose, so we really, really want to avoid that.
@@ -352,7 +353,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 			lastF_2_fh_tries.push_back(fh_2_slast.inverse() * lastF_2_slast * SE3(Sophus::Quaterniond(1,rotDelta,rotDelta,rotDelta), Vec3(0,0,0)));	// assume constant motion.
 		}
 
-		if(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid)
+		if(!slast->poseValid || !sprelast->poseValid || !lastF->shell->poseValid) // 有不和法的
 		{
 			lastF_2_fh_tries.clear();
 			lastF_2_fh_tries.push_back(SE3());
@@ -365,18 +366,20 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	AffLight aff_g2l = AffLight(0,0);
 
 
-	// as long as maxResForImmediateAccept is not reached, I'll continue through the options.
-	// I'll keep track of the so-far best achieved residual for each level in achievedRes.
-	// If on a coarse level, tracking is WORSE than achievedRes, we will not continue to save time.
-
+	//! as long as maxResForImmediateAccept is not reached, I'll continue through the options.??
+	//! I'll keep track of the so-far best achieved residual for each level in achievedRes. ??
+	//! If on a coarse level, tracking is WORSE than achievedRes, we will not continue to save time.
+	 
 
 	Vec5 achievedRes = Vec5::Constant(NAN);
 	bool haveOneGood = false;
 	int tryIterations=0;
+	//! 逐个尝试
 	for(unsigned int i=0;i<lastF_2_fh_tries.size();i++)
 	{
 		AffLight aff_g2l_this = aff_last_2_l;
 		SE3 lastF_2_fh_this = lastF_2_fh_tries[i];
+		
 		bool trackingIsGood = coarseTracker->trackNewestCoarse(
 				fh, lastF_2_fh_this, aff_g2l_this,
 				pyrLevelsUsed-1,
@@ -833,7 +836,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
     shell->timestamp = image->timestamp;
     shell->incoming_id = id;
 	fh->shell = shell;
-	allFrameHistory.push_back(shell);
+	allFrameHistory.push_back(shell);  // 只把简略的shell存起来
 
 	//[ ***step 3*** ] 得到曝光时间, 生成金字塔, 计算整个图像梯度
 	// =========================== make Images / derivatives etc. =========================
@@ -853,7 +856,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		}
 		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
 		{
-
+		//[ ***step 4.2*** ] 跟踪成功, 完成初始化
 			initializeFromInitializer(fh);
 			lock.unlock();
 			deliverTrackedFrame(fh, true);
@@ -868,9 +871,11 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 	}
 	else	// do front-end operation.
 	{
+	//[ ***step 5*** ]
 		// =========================== SWAP tracking reference?. =========================
 		if(coarseTracker_forNewKF->refFrameID > coarseTracker->refFrameID)
 		{
+			// 交换参考帧和当前帧的coarseTracker
 			boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
 			CoarseTracker* tmp = coarseTracker; coarseTracker=coarseTracker_forNewKF; coarseTracker_forNewKF=tmp;
 		}
@@ -1213,11 +1218,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 }
 
-
+//@ 从初始化中提取出信息, 用于跟踪.
 void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 {
 	boost::unique_lock<boost::mutex> lock(mapMutex);
 
+	//[ ***step 1*** ] 把第一帧设置成关键帧, 加入队列, 加入EnergyFunctional
 	// add firstframe.
 	FrameHessian* firstFrame = coarseInitializer->firstFrame;  // 第一帧增加进地图
 	firstFrame->idx = frameHessians.size(); // 赋值给它id (0开始)
@@ -1225,7 +1231,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	firstFrame->frameID = allKeyFramesHistory.size();  	// 所有历史关键帧id
 	allKeyFramesHistory.push_back(firstFrame->shell); 	// 所有历史关键帧
 	ef->insertFrame(firstFrame, &Hcalib);
-	setPrecalcValues();
+	setPrecalcValues();   		// 设置相对位姿预计算值
 
 	//int numPointsTotal = makePixelStatus(firstFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
 	//int numPointsTotal = pixelSelector->makeMaps(firstFrame->dIp, selectionMap,setting_desiredDensity);
@@ -1234,7 +1240,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	firstFrame->pointHessiansMarginalized.reserve(wG[0]*hG[0]*0.2f); // 被边缘化
 	firstFrame->pointHessiansOut.reserve(wG[0]*hG[0]*0.2f); // 丢掉的点
 
-
+	//[ ***step 2*** ] 求出平均尺度因子
 	float sumID=1e-5, numID=1e-5;
 	for(int i=0;i<coarseInitializer->numPoints[0];i++)
 	{
@@ -1252,6 +1258,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
         printf("Initialization: keep %.1f%% (need %d, have %d)!\n", 100*keepPercentage,
                 (int)(setting_desiredPointDensity), coarseInitializer->numPoints[0] );
 
+	//[ ***step 3*** ] 创建PointHessian, 点加入关键帧, 加入EnergyFunctional
 	for(int i=0;i<coarseInitializer->numPoints[0];i++)
 	{
 		if(rand()/(float)RAND_MAX > keepPercentage) continue; // 如果提取的点比较少, 不执行; 提取的多, 则随机干掉
@@ -1259,25 +1266,25 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 		Pnt* point = coarseInitializer->points[0]+i;
 		ImmaturePoint* pt = new ImmaturePoint(point->u+0.5f,point->v+0.5f,firstFrame,point->my_type, &Hcalib);
 
-		if(!std::isfinite(pt->energyTH)) { delete pt; continue; }
+		if(!std::isfinite(pt->energyTH)) { delete pt; continue; }  // 点值无穷大
 
-
+		// 创建ImmaturePoint就为了创建PointHessian? 是为了接口统一吧
 		pt->idepth_max=pt->idepth_min=1;
 		PointHessian* ph = new PointHessian(pt, &Hcalib);
 		delete pt;
 		if(!std::isfinite(ph->energyTH)) {delete ph; continue;}
 
-		ph->setIdepthScaled(point->iR*rescaleFactor);
-		ph->setIdepthZero(ph->idepth);
+		ph->setIdepthScaled(point->iR*rescaleFactor);  //? 为啥设置的是scaled之后的
+		ph->setIdepthZero(ph->idepth);			//! 设置初始先验值, 还有神奇的求零空间方法
 		ph->hasDepthPrior=true;
-		ph->setPointStatus(PointHessian::ACTIVE);
+		ph->setPointStatus(PointHessian::ACTIVE);	// 激活点
 
 		firstFrame->pointHessians.push_back(ph);
 		ef->insertPoint(ph);
 	}
 
 
-
+	//[ ***step 4*** ] 设置第一帧和最新帧的待优化量, 参考帧
 	SE3 firstToNew = coarseInitializer->thisToNext;
 	firstToNew.translation() /= rescaleFactor;
 
@@ -1285,7 +1292,7 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	// really no lock required, as we are initializing.
 	{
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
-		firstFrame->shell->camToWorld = SE3();
+		firstFrame->shell->camToWorld = SE3();		// 空的初值?
 		firstFrame->shell->aff_g2l = AffLight(0,0);
 		firstFrame->setEvalPT_scaled(firstFrame->shell->camToWorld.inverse(),firstFrame->shell->aff_g2l);
 		firstFrame->shell->trackingRef=0;

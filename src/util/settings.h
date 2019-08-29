@@ -146,6 +146,7 @@ extern float setting_coarseCutoffTH;
 
 extern float setting_minGradHistCut;
 extern float setting_minGradHistAdd;
+
 extern float setting_gradDownweightPerLevel;
 extern bool  setting_selectDirectionDistribution;
 

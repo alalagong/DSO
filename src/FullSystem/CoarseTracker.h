@@ -78,9 +78,9 @@ public:
     void debugPlotIDepthMap(float* minID, float* maxID, std::vector<IOWrap::Output3DWrapper*> &wraps);
     void debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*> &wraps);
 
-	FrameHessian* lastRef;
+	FrameHessian* lastRef;			//!< 参考帧, 怎么选, 是关键帧还是??
 	AffLight lastRef_aff_g2l;
-	FrameHessian* newFrame;
+	FrameHessian* newFrame;			//!< 新来的一帧
 	int refFrameID;
 
 	// act as pure ouptut
