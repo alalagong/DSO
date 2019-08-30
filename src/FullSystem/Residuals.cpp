@@ -66,8 +66,8 @@ PointFrameResidual::PointFrameResidual(PointHessian* point_, FrameHessian* host_
 	efResidual=0;
 	instanceCounter++;
 	resetOOB();
-	J = new RawResidualJacobian();
-	assert(((long)J)%16==0);
+	J = new RawResidualJacobian(); // 各种雅克比
+	assert(((long)J)%16==0); // 16位对齐
 
 	isNew=true;
 }

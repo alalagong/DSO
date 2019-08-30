@@ -44,18 +44,18 @@
 namespace dso
 {
 
-
+//! 生成2^b个字节对齐
 template<int b, typename T>
 T* allocAligned(int size, std::vector<T*> &rawPtrVec)
 {
-    const int padT = 1 + ((1 << b)/sizeof(T));
+    const int padT = 1 + ((1 << b)/sizeof(T)); //? 为什么加上这个值  答: 为了对齐,下面会移动b
     T* ptr = new T[size + padT];
     rawPtrVec.push_back(ptr);
-    T* alignedPtr = (T*)(( ((uintptr_t)(ptr+padT)) >> b) << b);
+    T* alignedPtr = (T*)(( ((uintptr_t)(ptr+padT)) >> b) << b);  //! 左移右移之后就会按照2的b次幂字节对齐, 丢掉不对齐的
     return alignedPtr;
 }
 
-
+//@ 构造函数, 申请内存, 初始化
 CoarseTracker::CoarseTracker(int ww, int hh) : lastRef_aff_g2l(0,0)
 {
 	// make coarse tracking templates.
@@ -99,6 +99,8 @@ CoarseTracker::~CoarseTracker()
     ptrToDelete.clear();
 }
 
+//@ 构造内参矩阵, 以及一些中间量,
+//TODO  每个类都有这个, 直接用一个多好
 void CoarseTracker::makeK(CalibHessian* HCalib)
 {
 	w[0] = wG[0];
@@ -142,10 +144,11 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 	{
 		for(PointHessian* ph : fh->pointHessians)
 		{
+			// 点的上一次残差正常
 			if(ph->lastResiduals[0].first != 0 && ph->lastResiduals[0].second == ResState::IN)
 			{
 				PointFrameResidual* r = ph->lastResiduals[0].first;
-				assert(r->efResidual->isActive() && r->target == lastRef);
+				assert(r->efResidual->isActive() && r->target == lastRef); // 点的残差是好的, 上一次优化的target是这次的ref
 				int u = r->centerProjectedTo[0] + 0.5f;
 				int v = r->centerProjectedTo[1] + 0.5f;
 				float new_idepth = r->centerProjectedTo[2];
@@ -252,7 +255,8 @@ void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 		int wl = w[lvl], hl = h[lvl];
 
 		int lpc_n=0;
-		float* lpc_u = pc_u[lvl];
+		//!!!! 指针, 只是把指针传过去, 怎么总想有没有赋值, 智障
+		float* lpc_u = pc_u[lvl]; 
 		float* lpc_v = pc_v[lvl];
 		float* lpc_idepth = pc_idepth[lvl];
 		float* lpc_color = pc_color[lvl];
@@ -373,6 +377,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 
 	Mat33f RKi = (refToNew.rotationMatrix().cast<float>() * Ki[lvl]);
 	Vec3f t = (refToNew.translation()).cast<float>();
+	// 这个函数会把前后两帧的光度参数变成两个值
 	Vec2f affLL = AffLight::fromToVecExposure(lastRef->ab_exposure, newFrame->ab_exposure, lastRef_aff_g2l, aff_g2l).cast<float>();
 
 
@@ -383,7 +388,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 	float maxEnergy = 2*setting_huberTH*cutoffTH-setting_huberTH*setting_huberTH;	// energy for r=setting_coarseCutoffTH.
 
 
-    MinimalImageB3* resImage = 0;
+    MinimalImageB3* resImage = 0;	// 自己定义的图像 nb
 	if(debugPlot)
 	{
 		resImage = new MinimalImageB3(wl,hl);
@@ -517,7 +522,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 
 
 
-
+//@ 
 void CoarseTracker::setCoarseTrackingRef(
 		std::vector<FrameHessian*> frameHessians)
 {
@@ -555,10 +560,10 @@ bool CoarseTracker::trackNewestCoarse(
 	int maxIterations[] = {10,20,50,50,50};
 	float lambdaExtrapolationLimit = 0.001;
 
-	SE3 refToNew_current = lastToNew_out;
+	SE3 refToNew_current = lastToNew_out;		// 优化的初始值
 	AffLight aff_g2l_current = aff_g2l_out;
 
-	bool haveRepeated = false;  // 是否重复计算
+	bool haveRepeated = false;  // 是否重复计算了
 
 
 	for(int lvl=coarsestLvl; lvl>=0; lvl--)

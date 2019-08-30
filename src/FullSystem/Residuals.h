@@ -61,20 +61,20 @@ public:
 	static int instanceCounter;
 
 
-	ResState state_state;
-	double state_energy;
-	ResState state_NewState;
-	double state_NewEnergy;
-	double state_NewEnergyWithOutlier;
+	ResState state_state;				//!< 
+	double state_energy;				//!< 
+	ResState state_NewState;			//!< 
+	double state_NewEnergy;				//!< 
+	double state_NewEnergyWithOutlier;	//!< 
 
 
 	void setState(ResState s) {state_state = s;}
 
 
-	PointHessian* point;
-	FrameHessian* host;
-	FrameHessian* target;
-	RawResidualJacobian* J;
+	PointHessian* point;		//!< 点
+	FrameHessian* host;			//!< 主帧
+	FrameHessian* target;		//!< 目标帧
+	RawResidualJacobian* J;		//!< 残差对变量的各种雅克比
 
 
 	bool isNew;

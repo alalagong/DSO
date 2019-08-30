@@ -33,24 +33,24 @@ struct RawResidualJacobian
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	// ================== new structure: save independently =============.
-	VecNRf resF;
+	VecNRf resF;					//!< 每个patch的8个残差
 
 	// the two rows of d[x,y]/d[xi].
-	Vec6f Jpdxi[2];			// 2x6
+	Vec6f Jpdxi[2];			// 2x6	//!< 点对位姿
 
 	// the two rows of d[x,y]/d[C].
-	VecCf Jpdc[2];			// 2x4
+	VecCf Jpdc[2];			// 2x4	//!< 点对相机参数
 
 	// the two rows of d[x,y]/d[idepth].
-	Vec2f Jpdd;				// 2x1
+	Vec2f Jpdd;				// 2x1	//!< 点对逆深度
 
 	// the two columns of d[r]/d[x,y].
-	VecNRf JIdx[2];			// 9x2
+	VecNRf JIdx[2];			// 9x2	//!< patch光度误差对点, 8×2
 
 	// = the two columns of d[r] / d[ab]
-	VecNRf JabF[2];			// 9x2
+	VecNRf JabF[2];			// 9x2	//!< patch光度误差对光度仿射， 8x2
 
-
+	//!< 对应的小的hessian
 	// = JIdx^T * JIdx (inner product). Only as a shorthand.
 	Mat22f JIdx2;				// 2x2
 	// = Jab^T * JIdx (inner product). Only as a shorthand.

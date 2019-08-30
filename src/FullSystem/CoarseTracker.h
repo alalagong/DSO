@@ -84,7 +84,7 @@ public:
 	int refFrameID;
 
 	// act as pure ouptut
-	Vec5 lastResiduals;
+	Vec5 lastResiduals;				//!< 
 	Vec3 lastFlowIndicators;
 	double firstCoarseRMSE;
 private:
@@ -120,7 +120,7 @@ private:
 	int buf_warped_n;
 
 
-    std::vector<float*> ptrToDelete;
+    std::vector<float*> ptrToDelete;				//!< 所有的申请的内存指针, 用于析构删除
 
 
 	Accumulator9 acc;
