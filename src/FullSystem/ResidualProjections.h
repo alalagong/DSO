@@ -32,7 +32,7 @@
 namespace dso
 {
 
-
+//@ 返回逆深度的导数值
 EIGEN_STRONG_INLINE float derive_idepth(
 		const Vec3f &t, const float &u, const float &v,
 		const int &dx, const int &dy, const float &dxInterp,
@@ -43,20 +43,23 @@ EIGEN_STRONG_INLINE float derive_idepth(
 }
 
 
-
+//@ 把host上的点变换到target上
 EIGEN_STRONG_INLINE bool projectPoint(
 		const float &u_pt,const float &v_pt,
 		const float &idepth,
 		const Mat33f &KRKi, const Vec3f &Kt,
 		float &Ku, float &Kv)
 {
-	Vec3f ptp = KRKi * Vec3f(u_pt,v_pt, 1) + Kt*idepth;
+	Vec3f ptp = KRKi * Vec3f(u_pt,v_pt, 1) + Kt*idepth; // host上点除深度
 	Ku = ptp[0] / ptp[2];
 	Kv = ptp[1] / ptp[2];
-	return Ku>1.1f && Kv>1.1f && Ku<wM3G && Kv<hM3G;
+	return Ku>1.1f && Kv>1.1f && Ku<wM3G && Kv<hM3G; // 不在边缘
 }
 
 
+//@ 将host帧投影到新的帧, 且可以设置像素偏移dxdy, 得到:
+//@ 参数: [drescale 新比旧逆深度] [uv 新的归一化平面]
+//@		[kukv 新的像素平面] [KliP 旧归一化平面] [new_idepth 新的逆深度]
 
 EIGEN_STRONG_INLINE bool projectPoint(
 		const float &u_pt,const float &v_pt,
@@ -67,19 +70,22 @@ EIGEN_STRONG_INLINE bool projectPoint(
 		float &drescale, float &u, float &v,
 		float &Ku, float &Kv, Vec3f &KliP, float &new_idepth)
 {
+	// host上归一化平面点
 	KliP = Vec3f(
 			(u_pt+dx-HCalib->cxl())*HCalib->fxli(),
 			(v_pt+dy-HCalib->cyl())*HCalib->fyli(),
 			1);
 
 	Vec3f ptp = R * KliP + t*idepth;
-	drescale = 1.0f/ptp[2];
-	new_idepth = idepth*drescale;
+	drescale = 1.0f/ptp[2]; 		// target帧逆深度 比 host帧逆深度
+	new_idepth = idepth*drescale;	// 新的帧上逆深度
 
 	if(!(drescale>0)) return false;
 
+	// 归一化平面
 	u = ptp[0] * drescale;
 	v = ptp[1] * drescale;
+	// 像素平面
 	Ku = u*HCalib->fxl() + HCalib->cxl();
 	Kv = v*HCalib->fyl() + HCalib->cyl();
 

@@ -31,7 +31,7 @@
 namespace dso
 {
 
-//* 构造函数, 不成熟点变地图点
+//@ 从ImmaturePoint构造函数, 不成熟点变地图点
 PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hcalib)
 {
 	instanceCounter++;
@@ -206,7 +206,7 @@ void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessi
 	PRE_tTll_0 = (leftToLeft_0.translation()).cast<float>();
 
 
-	// 优化后host target间位姿变换
+	// 优化后host到target间位姿变换
 	SE3 leftToLeft = target->PRE_worldToCam * host->PRE_camToWorld;
 	PRE_RTll = (leftToLeft.rotationMatrix()).cast<float>();
 	PRE_tTll = (leftToLeft.translation()).cast<float>();

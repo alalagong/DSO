@@ -82,7 +82,7 @@ public:
 	EFFrame* target;
 	int idxInAll;
 
-	RawResidualJacobian* J;
+	RawResidualJacobian* J;			//!< 用来计算jacob, res值
 
 	VecNRf res_toZeroF;
 	Vec8f JpJdF;
@@ -126,7 +126,7 @@ public:
 	std::vector<EFResidual*> residualsAll;
 
 	float bdSumF;
-	float HdiF;
+	float HdiF;				//!< 
 	float Hdd_accLF;
 	VecCf Hcd_accLF;
 	float bd_accLF;

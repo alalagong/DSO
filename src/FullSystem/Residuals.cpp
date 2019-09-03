@@ -82,21 +82,22 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	if(state_state == ResState::OOB)
 		{ state_NewState = ResState::OOB; return state_energy; }
 
-	FrameFramePrecalc* precalc = &(host->targetPrecalc[target->idx]);
-	float energyLeft=0;
+	FrameFramePrecalc* precalc = &(host->targetPrecalc[target->idx]); // 得到这个目标帧在主帧上的一些预计算参数
+	float energyLeft=0;			// 
 	const Eigen::Vector3f* dIl = target->dI;
 	//const float* const Il = target->I;
 	const Mat33f &PRE_KRKiTll = precalc->PRE_KRKiTll;
 	const Vec3f &PRE_KtTll = precalc->PRE_KtTll;
 	const Mat33f &PRE_RTll_0 = precalc->PRE_RTll_0;
 	const Vec3f &PRE_tTll_0 = precalc->PRE_tTll_0;
-	const float * const color = point->color;
+	const float * const color = point->color;	// host帧上颜色
 	const float * const weights = point->weights;
 
-	Vec2f affLL = precalc->PRE_aff_mode;
-	float b0 = precalc->PRE_b0_mode;
+	Vec2f affLL = precalc->PRE_aff_mode; // 待优化的a和b, 就是host和target合的
+	float b0 = precalc->PRE_b0_mode;		// 主帧的单独 b
 
-
+	
+	//! x=0时候求光度和几何的导数, 使用FEJ!!
 	Vec6f d_xi_x, d_xi_y;
 	Vec4f d_C_x, d_C_y;
 	float d_d_x, d_d_y;
@@ -107,29 +108,41 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 		if(!projectPoint(point->u, point->v, point->idepth_zero_scaled, 0, 0,HCalib,
 				PRE_RTll_0,PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth))
-			{ state_NewState = ResState::OOB; return state_energy; }
+			{ state_NewState = ResState::OOB; return state_energy; } // 投影不在图像里, 则返回OOB
 
 		centerProjectedTo = Vec3f(Ku, Kv, new_idepth);
 
+		//TODO 这些在初始化都写过了又写一遍 !!! 放到一起好不好, ai
 
+		//* 像素点对host上逆深度求导(由于乘了SCALE_IDEPTH倍, 因此乘上)
 		// diff d_idepth
 		d_d_x = drescale * (PRE_tTll_0[0]-PRE_tTll_0[2]*u)*SCALE_IDEPTH*HCalib->fxl();
 		d_d_y = drescale * (PRE_tTll_0[1]-PRE_tTll_0[2]*v)*SCALE_IDEPTH*HCalib->fyl();
 
-
-
-
+		//* 像素点对相机内参fx fy cx cy的导数第一部分
 		// diff calib
+		//! [0]: 1/Pz'*Px*(R20*Px'/Pz' - R00)  
+		//! [1]: 1/Pz'*Py*fx/fy*(R21*Px'/Pz' - R01)
+		//! [2]: 1/Pz'*(R20*Px'/Pz' - R00)  
+		//! [3]: 1/Pz'*fx/fy*(R21*Px'/Pz' - R01)
 		d_C_x[2] = drescale*(PRE_RTll_0(2,0)*u-PRE_RTll_0(0,0));
 		d_C_x[3] = HCalib->fxl() * drescale*(PRE_RTll_0(2,1)*u-PRE_RTll_0(0,1)) * HCalib->fyli();
 		d_C_x[0] = KliP[0]*d_C_x[2];
 		d_C_x[1] = KliP[1]*d_C_x[3];
 
+		//! [0]: 1/Pz'*Px*fy/fy*(R20*Py'/Pz' - R10)  
+		//! [1]: 1/Pz'*Py*(R21*Py'/Pz' - R11)
+		//! [2]: 1/Pz'*fy/fy*(R20*Py'/Pz' - R10)  
+		//! [3]: 1/Pz'*(R21*Py'/Pz' - R11)
 		d_C_y[2] = HCalib->fyl() * drescale*(PRE_RTll_0(2,0)*v-PRE_RTll_0(1,0)) * HCalib->fxli();
 		d_C_y[3] = drescale*(PRE_RTll_0(2,1)*v-PRE_RTll_0(1,1));
 		d_C_y[0] = KliP[0]*d_C_y[2];
 		d_C_y[1] = KliP[1]*d_C_y[3];
 
+
+		//* 第二部分 同样project时候一样使用了scaled的内参
+		//! [Px'/Pz'  0  1  0; 
+		//!  0  Py'/Pz'  0  1]
 		d_C_x[0] = (d_C_x[0]+u)*SCALE_F;
 		d_C_x[1] *= SCALE_F;
 		d_C_x[2] = (d_C_x[2]+1)*SCALE_C;
@@ -140,7 +153,8 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 		d_C_y[2] *= SCALE_C;
 		d_C_y[3] = (d_C_y[3]+1)*SCALE_C;
 
-
+		//* 像素点对位姿的导数, 位移在前!
+		//! 公式见初始化那儿
 		d_xi_x[0] = new_idepth*HCalib->fxl();
 		d_xi_x[1] = 0;
 		d_xi_x[2] = -new_idepth*u*HCalib->fxl();
@@ -183,30 +197,35 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	for(int idx=0;idx<patternNum;idx++)
 	{
 		float Ku, Kv;
+		//? 为啥这里使用idepth_scaled, 上面使用的是zero
+		//! 答: 这里是求图像导数, 由于线性误差大, 就不使用FEJ, 所以使用当前的状态
 		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
 			{ state_NewState = ResState::OOB; return state_energy; }
-
+		
+		// 像素坐标
 		projectedTo[idx][0] = Ku;
 		projectedTo[idx][1] = Kv;
 
 
         Vec3f hitColor = (getInterpolatedElement33(dIl, Ku, Kv, wG[0]));
-        float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]);
+        float residual = hitColor[0] - (float)(affLL[0] * color[idx] + affLL[1]); // 残差
 
 
+		//* 残差对光度仿射a求导
+		float drdA = (color[idx]-b0); 
 
-		float drdA = (color[idx]-b0);
 		if(!std::isfinite((float)hitColor[0]))
 		{ state_NewState = ResState::OOB; return state_energy; }
 
-
+		//* 和梯度大小成比例的权重
 		float w = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + hitColor.tail<2>().squaredNorm()));
-        w = 0.5f*(w + weights[idx]);
+        //* 和patch位置相关的权重
+		w = 0.5f*(w + weights[idx]); 
 
 
-
+		//* huber函数, 能量值(chi2)
 		float hw = fabsf(residual) < setting_huberTH ? 1 : setting_huberTH / fabsf(residual);
-		energyLeft += w*w*hw *residual*residual*(2-hw);
+		energyLeft += w*w*hw *residual*residual*(2-hw); 
 
 		{
 			if(hw < 1) hw = sqrtf(hw);
@@ -215,28 +234,35 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 			hitColor[1]*=hw;
 			hitColor[2]*=hw;
 
-			J->resF[idx] = residual*hw;
+			//! 残差 res*w*sqrt(hw)
+			J->resF[idx] = residual*hw; 
 
+			//! 图像导数 dx dy
 			J->JIdx[0][idx] = hitColor[1];
 			J->JIdx[1][idx] = hitColor[2];
+
+			//! 对光度合成后a b的导数 [Ii-b0  1]
+			//! Ij - a*Ii - b  (a = tj*e^aj / ti*e^ai,   b = bj - a*bi) 
+			//bug 正负号有影响 ???
 			J->JabF[0][idx] = drdA*hw;
 			J->JabF[1][idx] = hw;
-
+			
+			//! dIdx&dIdx hessian block
 			JIdxJIdx_00+=hitColor[1]*hitColor[1];
 			JIdxJIdx_11+=hitColor[2]*hitColor[2];
 			JIdxJIdx_10+=hitColor[1]*hitColor[2];
-
+			//! dIdx&dIdab hessian block
 			JabJIdx_00+= drdA*hw * hitColor[1];
 			JabJIdx_01+= drdA*hw * hitColor[2];
 			JabJIdx_10+= hw * hitColor[1];
 			JabJIdx_11+= hw * hitColor[2];
-
+			//! dIdab&dIdab hessian block
 			JabJab_00+= drdA*drdA*hw*hw;
 			JabJab_01+= drdA*hw*hw;
 			JabJab_11+= hw*hw;
 
 
-			wJI2_sum += hw*hw*(hitColor[1]*hitColor[1]+hitColor[2]*hitColor[2]);
+			wJI2_sum += hw*hw*(hitColor[1]*hitColor[1]+hitColor[2]*hitColor[2]); // 梯度平方
 
 			if(setting_affineOptModeA < 0) J->JabF[0][idx]=0;
 			if(setting_affineOptModeB < 0) J->JabF[1][idx]=0;
@@ -244,6 +270,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 		}
 	}
 
+	// 都是对target的导数
 	J->JIdx2(0,0) = JIdxJIdx_00;
 	J->JIdx2(0,1) = JIdxJIdx_10;
 	J->JIdx2(1,0) = JIdxJIdx_10;
@@ -258,7 +285,8 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	J->Jab2(1,1) = JabJab_11;
 
 	state_NewEnergyWithOutlier = energyLeft;
-
+	
+	//* 大于阈值则视为有外点
 	if(energyLeft > std::max<float>(host->frameEnergyTH, target->frameEnergyTH) || wJI2_sum < 2)
 	{
 		energyLeft = std::max<float>(host->frameEnergyTH, target->frameEnergyTH);
@@ -302,7 +330,7 @@ void PointFrameResidual::debugPlot()
 }
 
 
-
+//@ 把计算的残差,雅克比值给EFResidual
 void PointFrameResidual::applyRes(bool copyJacobians)
 {
 	if(copyJacobians)
@@ -315,7 +343,8 @@ void PointFrameResidual::applyRes(bool copyJacobians)
 		if(state_NewState == ResState::IN)// && )
 		{
 			efResidual->isActiveAndIsGoodNEW=true;
-			efResidual->takeDataF();
+			//? 指针好恶心, 计算好了调用这个函数
+			efResidual->takeDataF();  // 从当前取jacobian数据
 		}
 		else
 		{

@@ -40,15 +40,16 @@ void EFResidual::takeDataF()
 {
 	std::swap<RawResidualJacobian*>(J, data->J);
 
+	//! 图像导数 * 图像导数 * 逆深度导数
 	Vec2f JI_JI_Jd = J->JIdx2 * J->Jpdd;
-
+	//! 位姿导数 * 图像导数 * 图像导数 * 逆深度导数
 	for(int i=0;i<6;i++)
 		JpJdF[i] = J->Jpdxi[0][i]*JI_JI_Jd[0] + J->Jpdxi[1][i] * JI_JI_Jd[1];
-
+	//! 图像导数 * 深度导数 * 光度导数
 	JpJdF.segment<2>(6) = J->JabJIdx*J->Jpdd;
 }
 
-//* 从 FrameHessian 中提取数据
+//@ 从 FrameHessian 中提取数据
 void EFFrame::takeData()
 {
 	prior = data->getPrior().head<8>(); 	// 得到先验状态, 主要是光度仿射变换
@@ -57,15 +58,15 @@ void EFFrame::takeData()
 
 
 
-//	Vec10 state_zero =  data->get_state_zero();
-//	state_zero.segment<3>(0) = SCALE_XI_TRANS * state_zero.segment<3>(0);
-//	state_zero.segment<3>(3) = SCALE_XI_ROT * state_zero.segment<3>(3);
-//	state_zero[6] = SCALE_A * state_zero[6];
-//	state_zero[7] = SCALE_B * state_zero[7];
-//	state_zero[8] = SCALE_A * state_zero[8];
-//	state_zero[9] = SCALE_B * state_zero[9];
-//
-//	std::cout << "state_zero: " << state_zero.transpose() << "\n";
+	//	Vec10 state_zero =  data->get_state_zero();
+	//	state_zero.segment<3>(0) = SCALE_XI_TRANS * state_zero.segment<3>(0);
+	//	state_zero.segment<3>(3) = SCALE_XI_ROT * state_zero.segment<3>(3);
+	//	state_zero[6] = SCALE_A * state_zero[6];
+	//	state_zero[7] = SCALE_B * state_zero[7];
+	//	state_zero[8] = SCALE_A * state_zero[8];
+	//	state_zero[9] = SCALE_B * state_zero[9];
+	//
+	//	std::cout << "state_zero: " << state_zero.transpose() << "\n";
 
 
 	assert(data->frameID != -1);

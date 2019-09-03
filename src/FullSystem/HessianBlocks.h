@@ -77,7 +77,7 @@ class EFPoint;
 #define SCALE_A_INVERSE (1.0f / SCALE_A)
 #define SCALE_B_INVERSE (1.0f / SCALE_B)
 
-//TODO 提前计算的一些数? 还没没看到实现
+//* 其中带0的是FEJ用的初始状态, 不带0的是更新的状态
 struct FrameFramePrecalc
 {
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
@@ -152,7 +152,7 @@ struct FrameHessian
 	Vec6 nullspaces_scale;
 
 	// variable info.
-	SE3 worldToCam_evalPT;		//!< 待估计的相机位姿
+	SE3 worldToCam_evalPT;		//!< 在估计的相机位姿
 	// [0-5: 位姿左乘小量. 6-7: a,b 光度仿射系数]
 	Vec10 state_zero;   		//!< 固定的线性化点的状态增量, 为了计算进行缩放
 	Vec10 state_scaled;			//!< 乘上比例系数的状态增量, 这个是真正求的值!!!
@@ -215,7 +215,7 @@ struct FrameHessian
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
 	};
-	//* 设置待估计位姿, 和状态增量, 同时设置了FEJ点
+	//* 设置当前位姿, 和状态增量, 同时设置了FEJ点
 	inline void setEvalPT(const SE3 &worldToCam_evalPT, const Vec10 &state)
 	{
 
@@ -225,11 +225,11 @@ struct FrameHessian
 	};
 
 
-	//* 设置待估计位姿, 光度仿射系数, FEJ点
+	//* 设置当前位姿, 光度仿射系数, FEJ点
 	inline void setEvalPT_scaled(const SE3 &worldToCam_evalPT, const AffLight &aff_g2l)
 	{
 		Vec10 initial_state = Vec10::Zero();
-		initial_state[6] = aff_g2l.a; //? 既然是增量, 怎么就直接复制变量?
+		initial_state[6] = aff_g2l.a; // 直接设置光度系数a和b
 		initial_state[7] = aff_g2l.b;
 		this->worldToCam_evalPT = worldToCam_evalPT;
 		setStateScaled(initial_state);
@@ -437,8 +437,8 @@ struct PointHessian
 
 	float my_type;//不同类型点, 显示用
 
-	float idepth_scaled;				//!< 点逆深度
-	float idepth_zero_scaled;			//!< 点的FEJ逆深度
+	float idepth_scaled;				//!< target还是host上点逆深度 ??
+	float idepth_zero_scaled;			//!< FEJ使用, 点在host上x=0初始逆深度
 	float idepth_zero;					//!< 缩放了scale倍的固定线性化点逆深度
 	float idepth;						//!< 缩放scale倍的逆深度
 	float step;

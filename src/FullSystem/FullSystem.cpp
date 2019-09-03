@@ -172,7 +172,7 @@ FullSystem::FullSystem()
 
 	linearizeOperation=true;
 	runMapping=true;
-	mappingThread = boost::thread(&FullSystem::mappingLoop, this);
+	mappingThread = boost::thread(&FullSystem::mappingLoop, this); // 建图线程单开
 	lastRefStopID=0;
 
 
@@ -473,6 +473,7 @@ Vec4 FullSystem::trackNewCoarse(FrameHessian* fh)
 	return Vec4(achievedRes[0], flowVecs[0], flowVecs[1], flowVecs[2]);
 }
 
+//@ 利用新的帧 fh 对关键帧中的ImmaturePoint进行更新
 void FullSystem::traceNewCoarse(FrameHessian* fh)
 {
 	boost::unique_lock<boost::mutex> lock(mapMutex);
@@ -485,6 +486,7 @@ void FullSystem::traceNewCoarse(FrameHessian* fh)
 	K(0,2) = Hcalib.cxl();
 	K(1,2) = Hcalib.cyl();
 
+	// 遍历关键帧
 	for(FrameHessian* host : frameHessians)		// go through all active frames
 	{
 
@@ -497,7 +499,7 @@ void FullSystem::traceNewCoarse(FrameHessian* fh)
 		for(ImmaturePoint* ph : host->immaturePoints)
 		{
 			ph->traceOn(fh, KRKi, Kt, aff, &Hcalib, false );
-
+			//TODO 这都是啥意思, ImmaturePoint待看
 			if(ph->lastTraceStatus==ImmaturePointStatus::IPS_GOOD) trace_good++;
 			if(ph->lastTraceStatus==ImmaturePointStatus::IPS_BADCONDITION) trace_badcondition++;
 			if(ph->lastTraceStatus==ImmaturePointStatus::IPS_OOB) trace_oob++;
@@ -924,11 +926,13 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 		return;
 	}
 }
+
+//@ 把跟踪的帧, 给到建图线程, 设置成关键帧或非关键帧
 void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 {
 
-
-	if(linearizeOperation)
+	//TODO 如何理解linearizeOperation
+	if(linearizeOperation) 
 	{
 		if(goStepByStep && lastRefStopID != coarseTracker->refFrameID)
 		{
@@ -951,14 +955,14 @@ void FullSystem::deliverTrackedFrame(FrameHessian* fh, bool needKF)
 	}
 	else
 	{
-		boost::unique_lock<boost::mutex> lock(trackMapSyncMutex);
+		boost::unique_lock<boost::mutex> lock(trackMapSyncMutex); // 跟踪和建图同步锁
 		unmappedTrackedFrames.push_back(fh);
 		if(needKF) needNewKFAfter=fh->shell->trackingRef->id;
 		trackedFrameSignal.notify_all();
 
 		while(coarseTracker_forNewKF->refFrameID == -1 && coarseTracker->refFrameID == -1 )
 		{
-			mappedFrameSignal.wait(lock);
+			mappedFrameSignal.wait(lock);  // 当没有跟踪的图像, 就一直阻塞trackMapSyncMutex, 直到notify
 		}
 
 		lock.unlock();
@@ -1047,38 +1051,48 @@ void FullSystem::blockUntilMappingIsFinished()
 
 }
 
+//@ 设置成非关键帧
 void FullSystem::makeNonKeyFrame( FrameHessian* fh)
 {
 	// needs to be set by mapping thread. no lock required since we are in mapping thread.
 	{
-		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+		boost::unique_lock<boost::mutex> crlock(shellPoseMutex); // 生命周期结束后自动解锁
 		assert(fh->shell->trackingRef != 0);
+		// mapping时将它当前位姿取出来得到camToWorld
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+		// 把此时估计的位姿取出来
 		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 	}
-
-	traceNewCoarse(fh);
+	// TODO 在哪判断是否成熟呢
+	traceNewCoarse(fh);  // 更新未成熟点(深度未收敛的点)
 	delete fh;
 }
 
+//@ 
 void FullSystem::makeKeyFrame( FrameHessian* fh)
 {
+
+//[ ***step 1*** ] 设置当前估计的fh的位姿, 光度参数
 	// needs to be set by mapping thread
-	{
+	{	// 同样取出位姿, 当前的作为最终值
+		//? 这个位姿还会优化么 ???
+		//? 为啥要从shell来设置 ???
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 		assert(fh->shell->trackingRef != 0);
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
-		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
+		fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l); // 待优化值
 	}
 
-	traceNewCoarse(fh);
+//[ ***step 2*** ] 把这一帧来更新之前帧的未成熟点
+	traceNewCoarse(fh); // 更新未成熟点(深度未收敛的点)
 
-	boost::unique_lock<boost::mutex> lock(mapMutex);
+	boost::unique_lock<boost::mutex> lock(mapMutex); // 建图锁
 
+//[ ***step 3*** ]
 	// =========================== Flag Frames to be Marginalized. =========================
 	flagFramesForMarginalization(fh);
 
-
+//[ ***step 4*** ] 加入到关键帧序列
 	// =========================== add New Frame to Hessian Struct. =========================
 	fh->idx = frameHessians.size();
 	frameHessians.push_back(fh);
@@ -1086,10 +1100,10 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	allKeyFramesHistory.push_back(fh->shell);
 	ef->insertFrame(fh, &Hcalib);
 
-	setPrecalcValues();
+	setPrecalcValues();	// 每添加一个关键帧都会运行这个来设置位姿, 设置位姿线性化点
 
 
-
+//[ ***step 5*** ] 构建之前关键帧与当前帧fh的残差
 	// =========================== add new residuals for old points =========================
 	int numFwdResAdde=0;
 	for(FrameHessian* fh1 : frameHessians)		// go through all active frames
@@ -1097,12 +1111,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		if(fh1 == fh) continue;
 		for(PointHessian* ph : fh1->pointHessians)
 		{
-			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh);
+			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh); // 新建当前帧fh和之前帧之间的残差
 			r->setState(ResState::IN);
 			ph->residuals.push_back(r);
 			ef->insertResidual(r);
-			ph->lastResiduals[1] = ph->lastResiduals[0];
-			ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::IN);
+			ph->lastResiduals[1] = ph->lastResiduals[0]; // 设置上上个残差
+			ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::IN); // 当前的设置为上一个
 			numFwdResAdde+=1;
 		}
 	}
@@ -1112,7 +1126,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	// =========================== Activate Points (& flag for marginalization). =========================
 	activatePointsMT();
-	ef->makeIDX();
+	ef->makeIDX();  // ? 为啥要重新设置ID呢, 是因为加新的帧了么
 
 
 
@@ -1337,7 +1351,7 @@ void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 
 }
 
-
+//TODO 需要好好理解这个设置的是啥
 //* 计算frameHessian的预计算值, 和状态的delta值
 void FullSystem::setPrecalcValues()
 {

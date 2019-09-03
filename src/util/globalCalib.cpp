@@ -27,6 +27,7 @@
 #include "stdio.h"
 #include <iostream>
 
+//! 后面带G的是global变量
 namespace dso
 {
 	int wG[PYR_LEVELS], hG[PYR_LEVELS];
@@ -39,7 +40,7 @@ namespace dso
 	Eigen::Matrix3f KG[PYR_LEVELS], KiG[PYR_LEVELS];
 
 
-	float wM3G;
+	float wM3G; // w-3 global
 	float hM3G;
 
 	void setGlobalCalib(int w, int h,const Eigen::Matrix3f &K)

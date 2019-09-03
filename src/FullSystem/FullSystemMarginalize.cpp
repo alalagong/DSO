@@ -57,11 +57,12 @@ namespace dso
 
 void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 {
+	// TODO 怎么会有这种情况呢? 
 	if(setting_minFrameAge > setting_maxFrames)
 	{
 		for(int i=setting_maxFrames;i<(int)frameHessians.size();i++)
 		{
-			FrameHessian* fh = frameHessians[i-setting_maxFrames];
+			FrameHessian* fh = frameHessians[i-setting_maxFrames];  // setting_maxFrames个之前的都边缘化掉
 			fh->flaggedForMarginalization = true;
 		}
 		return;
@@ -73,8 +74,8 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 	for(int i=0;i<(int)frameHessians.size();i++)
 	{
 		FrameHessian* fh = frameHessians[i];
-		int in = fh->pointHessians.size() + fh->immaturePoints.size();
-		int out = fh->pointHessiansMarginalized.size() + fh->pointHessiansOut.size();
+		int in = fh->pointHessians.size() + fh->immaturePoints.size(); // 还在的点
+		int out = fh->pointHessiansMarginalized.size() + fh->pointHessiansOut.size(); // 边缘化和丢掉的点
 
 
 		Vec2 refToFh=AffLight::fromToVecExposure(frameHessians.back()->ab_exposure, fh->ab_exposure,
