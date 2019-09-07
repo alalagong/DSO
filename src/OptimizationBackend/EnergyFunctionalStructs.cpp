@@ -76,19 +76,20 @@ void EFFrame::takeData()
 
 
 
-
+//@ 从PointHessian读取先验和当前状态信息
 void EFPoint::takeData()
 {
 	priorF = data->hasDepthPrior ? setting_idepthFixPrior*SCALE_IDEPTH*SCALE_IDEPTH : 0;
 	if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) priorF=0;
 
-	deltaF = data->idepth-data->idepth_zero;
+	deltaF = data->idepth - data->idepth_zero; // 当前状态逆深度减去线性化处
 }
 
-
+//@ 计算线性化更新后的残差,
+//! 没平方叫残差, 平方叫能量
 void EFResidual::fixLinearizationF(EnergyFunctional* ef)
 {
-	Vec8f dp = ef->adHTdeltaF[hostIDX+ef->nFrames*targetIDX];
+	Vec8f dp = ef->adHTdeltaF[hostIDX+ef->nFrames*targetIDX]; // 得到hostIDX --> targetIDX的状态增量
 
 	// compute Jp*delta
 	__m128 Jp_delta_x = _mm_set1_ps(J->Jpdxi[0].dot(dp.head<6>())
@@ -103,12 +104,13 @@ void EFResidual::fixLinearizationF(EnergyFunctional* ef)
 	for(int i=0;i<patternNum;i+=4)
 	{
 		// PATTERN: rtz = resF - [JI*Jp Ja]*delta.
-		__m128 rtz = _mm_load_ps(((float*)&J->resF)+i);
+		__m128 rtz = _mm_load_ps(((float*)&J->resF)+i); // 光度残差
+		//! res - J * delta_x
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JIdx))+i),Jp_delta_x));
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JIdx+1))+i),Jp_delta_y));
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JabF))+i),delta_a));
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JabF+1))+i),delta_b));
-		_mm_store_ps(((float*)&res_toZeroF)+i, rtz);
+		_mm_store_ps(((float*)&res_toZeroF)+i, rtz); // 存储在res_toZeroF
 	}
 
 	isLinearized = true;

@@ -74,7 +74,7 @@ PointFrameResidual::PointFrameResidual(PointHessian* point_, FrameHessian* host_
 
 
 
-
+//@ 求对各个参数的导数, 和能量值
 double PointFrameResidual::linearize(CalibHessian* HCalib)
 {
 	state_NewEnergyWithOutlier=-1;
@@ -270,7 +270,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 		}
 	}
 
-	// 都是对target的导数
+	// 都是对host到target之间的变化量导数
 	J->JIdx2(0,0) = JIdxJIdx_00;
 	J->JIdx2(0,1) = JIdxJIdx_10;
 	J->JIdx2(1,0) = JIdxJIdx_10;

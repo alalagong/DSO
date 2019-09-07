@@ -51,7 +51,7 @@ typedef Sophus::SO3d SO3;
 
 
 
-#define CPARS 4
+#define CPARS 4  // 相机内参维数
 
 
 typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic> MatXX;

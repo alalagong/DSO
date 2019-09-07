@@ -245,7 +245,7 @@ private:
 
 
 
-
+// 14 个变量情况
 class Accumulator14
 {
 public:
@@ -259,6 +259,7 @@ public:
   {
 	H.setZero();
 	b.setZero();
+	//! (14*14 - 14)/2 + 14 hessian 只需要计算一半
     memset(SSEData,0, sizeof(float)*4*105);
     memset(SSEData1k,0, sizeof(float)*4*105);
     memset(SSEData1m,0, sizeof(float)*4*105);
@@ -595,6 +596,7 @@ private:
  * (assuming x,y are column-vectors).
  * numerically robust to large sums.
  */
+//@ 这也没怎么用SSE都是直接算了
 class AccumulatorApprox
 {
 public:
@@ -605,14 +607,15 @@ public:
 
   inline void initialize()
   {
+	//! 左上角10*10, 55个值(有对称)
 	memset(Data,0, sizeof(float)*60);
 	memset(Data1k,0, sizeof(float)*60);
 	memset(Data1m,0, sizeof(float)*60);
-
+	//! 右上角10*3, 30个值
 	memset(TopRight_Data,0, sizeof(float)*32);
 	memset(TopRight_Data1k,0, sizeof(float)*32);
 	memset(TopRight_Data1m,0, sizeof(float)*32);
-
+	//! 右下角3*3, 6个值(有对称)
 	memset(BotRight_Data,0, sizeof(float)*8);
 	memset(BotRight_Data1k,0, sizeof(float)*8);
 	memset(BotRight_Data1m,0, sizeof(float)*8);
@@ -656,7 +659,7 @@ inline void finish()
 
 
 
-
+  //@ [x, y]分别是10维向量, [a, c]是公共项对角线, [b]是公共项交叉项
   inline void updateSSE(
 		  const float* const x,
 		  const float* const y,
@@ -849,7 +852,7 @@ inline void finish()
 	  shiftUp(false);
   }
 
-
+//@ 计算10*3部分
   inline void updateTopRight(
 		  const float* const x4,
 		  const float* const x6,
@@ -981,7 +984,7 @@ private:
 
 
 
-
+// 9个变量的情况
 class Accumulator9
 {
 public:

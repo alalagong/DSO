@@ -433,7 +433,7 @@ struct PointHessian
 	int idx;							//!< 
 	float energyTH;						//!< 光度误差阈值
 	FrameHessian* host;					//!< 主帧
-	bool hasDepthPrior;
+	bool hasDepthPrior;					//!< 初始化得到的点是有深度先验的, 其它没有
 
 	float my_type;//不同类型点, 显示用
 
@@ -447,7 +447,7 @@ struct PointHessian
 
 	float nullspaces_scale;
 	float idepth_hessian;				//!< 对应的hessian矩阵值
-	float maxRelBaseline;
+	float maxRelBaseline;				//!< 
 	int numGoodResiduals;
 	//? OOB: 应该是由于被边缘化帧上, 同时被最近帧看到的, 所以丢弃观测? OR out of border???
 	enum PtStatus {ACTIVE=0, INACTIVE, OUTLIER, OOB, MARGINALIZED};

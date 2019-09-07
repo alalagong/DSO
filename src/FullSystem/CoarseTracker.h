@@ -144,7 +144,7 @@ public:
 	void makeK( CalibHessian* HCalib);
 
 
-	float* fwdWarpedIDDistFinal;
+	float* fwdWarpedIDDistFinal;		//!< 
 
 	Mat33f K[PYR_LEVELS];
 	Mat33f Ki[PYR_LEVELS];
@@ -164,9 +164,9 @@ public:
 
 private:
 
-	PointFrameResidual** coarseProjectionGrid;
-	int* coarseProjectionGridNum;
-	Eigen::Vector2i* bfsList1;
+	PointFrameResidual** coarseProjectionGrid;	//!< 
+	int* coarseProjectionGridNum;				//!< 
+	Eigen::Vector2i* bfsList1;					//!< 投影到frame的坐标
 	Eigen::Vector2i* bfsList2;
 
 	void growDistBFS(int bfsNum);

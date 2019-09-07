@@ -77,19 +77,19 @@ public:
 	// structural pointers
 	PointFrameResidual* data;
 	int hostIDX, targetIDX;  		//!< 残差对应的 host 和 Target ID号
-	EFPoint* point;
-	EFFrame* host;
-	EFFrame* target;
-	int idxInAll;
+	EFPoint* point;					//!< 残差点
+	EFFrame* host;					//!< 主
+	EFFrame* target;				//!< 目标
+	int idxInAll;					//!< 所有残差中的id
 
 	RawResidualJacobian* J;			//!< 用来计算jacob, res值
 
-	VecNRf res_toZeroF;
-	Vec8f JpJdF;
+	VecNRf res_toZeroF;				//!< 更新delta后的线性残差
+	Vec8f JpJdF;					//!< 点对逆深度求导
 
 
 	// status.
-	bool isLinearized;
+	bool isLinearized;				//!< 计算完成res_toZeroF
 
 	// if residual is not OOB & not OUTLIER & should be used during accumulations
 	bool isActiveAndIsGoodNEW;
@@ -110,26 +110,26 @@ public:
 	}
 	void takeData();
 
-	PointHessian* data;
+	PointHessian* data;	//!< PointHessian数据
 
 
 
-	float priorF;
-	float deltaF;
+	float priorF;		//!< 逆深度先验信息
+	float deltaF;		//!< 当前逆深度和线性化处的差
 
 
 	// constant info (never changes in-between).
-	int idxInPoints;
+	int idxInPoints;	//!< 当前点在EFFrame中id
 	EFFrame* host;
 
 	// contains all residuals.
-	std::vector<EFResidual*> residualsAll;
+	std::vector<EFResidual*> residualsAll;	//!< 该点的所有残差
 
 	float bdSumF;
 	float HdiF;				//!< 
-	float Hdd_accLF;
-	VecCf Hcd_accLF;
-	float bd_accLF;
+	float Hdd_accLF;		//!< 逆深度的hessian
+	VecCf Hcd_accLF;		//!< 逆深度和内参的hessian
+	float bd_accLF;			//!< J逆深度*残差
 	float Hdd_accAF;
 	VecCf Hcd_accAF;
 	float bd_accAF;
@@ -150,15 +150,16 @@ public:
 	}
 	void takeData();
 
+	//! 位姿 0-5, 光度ab 6-7
+	//TODO 和fh的state有啥区别??
+	Vec8 prior;					//!<  prior hessian (diagonal)
+	Vec8 delta_prior;			//!<    // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
+	Vec8 delta;					//!<   // state - state_zero.
 
-	Vec8 prior;				// prior hessian (diagonal)
-	Vec8 delta_prior;		//!<    // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
-	Vec8 delta;				// state - state_zero.
 
 
-
-	std::vector<EFPoint*> points;
-	FrameHessian* data;
+	std::vector<EFPoint*> points;	//!< 帧上所有点
+	FrameHessian* data;				//!< 对应FrameHessian数据
 	//? 和FrameHessian中的idx有啥不同
 	int idx;			//!< 在能量函数中帧id // idx in frames.
 

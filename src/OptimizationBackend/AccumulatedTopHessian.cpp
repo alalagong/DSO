@@ -35,7 +35,7 @@ namespace dso
 {
 
 
-
+//@ 计算残差对应的 Hessian和Jres
 template<int mode>
 void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * const ef, int tid)	// 0 = active, 1 = linearized, 2=marginalize
 {
@@ -43,43 +43,46 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 	assert(mode==0 || mode==1 || mode==2);
 
-	VecCf dc = ef->cDeltaF;
-	float dd = p->deltaF;
+	VecCf dc = ef->cDeltaF; // 内参
+	float dd = p->deltaF;	// 逆深度
 
 	float bd_acc=0;
 	float Hdd_acc=0;
 	VecCf  Hcd_acc = VecCf::Zero();
 
-	for(EFResidual* r : p->residualsAll)
+	for(EFResidual* r : p->residualsAll) // 对该点所有残差遍历一遍
 	{
-		if(mode==0)
+		//TODO 为什么会有这样差别
+		if(mode==0) // 有光度标定结果
 		{
 			if(r->isLinearized || !r->isActive()) continue;
 		}
-		if(mode==1)
+		if(mode==1)	// 无光度标定, 进行估计
 		{
 			if(!r->isLinearized || !r->isActive()) continue;
 		}
-		if(mode==2)
+		if(mode==2) // 光度矫正后的图像
 		{
 			if(!r->isActive()) continue;
 			assert(r->isLinearized);
 		}
 
 
-		RawResidualJacobian* rJ = r->J;
-		int htIDX = r->hostIDX + r->targetIDX*nframes[tid];
-		Mat18f dp = ef->adHTdeltaF[htIDX];
+		RawResidualJacobian* rJ = r->J; // 导数
+		//* ID 来控制不同帧之间的变量, 区分出相同两帧 但是host target角色互换的
+		int htIDX = r->hostIDX + r->targetIDX*nframes[tid]; 
+		Mat18f dp = ef->adHTdeltaF[htIDX]; // 位姿+光度a b
 
 
-
+		
 		VecNRf resApprox;
 		if(mode==0)
 			resApprox = rJ->resF;
-		if(mode==2)
+		if(mode==2) //? 为什么减去
 			resApprox = r->res_toZeroF;
 		if(mode==1)
 		{
+			//? 这不和mode2一样了
 			// compute Jp*delta
 			__m128 Jp_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->Jpdd[0]*dd);
 			__m128 Jp_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->Jpdd[1]*dd);
@@ -111,16 +114,16 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 			rr += resApprox[i]*resApprox[i];
 		}
 
-
+		//* 计算hessian 10*10矩阵, [位姿+相机参数]
 		acc[tid][htIDX].update(
 				rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
 				rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
 				rJ->JIdx2(0,0),rJ->JIdx2(0,1),rJ->JIdx2(1,1));
-
+		//* 计算 3*3 矩阵, [光度a, 光度b, 残差r]
 		acc[tid][htIDX].updateBotRight(
 				rJ->Jab2(0,0), rJ->Jab2(0,1), Jab_r[0],
 				rJ->Jab2(1,1), Jab_r[1],rr);
-
+		//* 计算 10*3 矩阵, [位姿+相机参数]*[光度a, 光度b, 残差r]
 		acc[tid][htIDX].updateTopRight(
 				rJ->Jpdc[0].data(), rJ->Jpdxi[0].data(),
 				rJ->Jpdc[1].data(), rJ->Jpdxi[1].data(),
@@ -130,19 +133,20 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 
 		Vec2f Ji2_Jpdd = rJ->JIdx2 * rJ->Jpdd;
-		bd_acc +=  JI_r[0]*rJ->Jpdd[0] + JI_r[1]*rJ->Jpdd[1];
-		Hdd_acc += Ji2_Jpdd.dot(rJ->Jpdd);
-		Hcd_acc += rJ->Jpdc[0]*Ji2_Jpdd[0] + rJ->Jpdc[1]*Ji2_Jpdd[1];
+		bd_acc +=  JI_r[0]*rJ->Jpdd[0] + JI_r[1]*rJ->Jpdd[1]; //* 残差*逆深度J
+		Hdd_acc += Ji2_Jpdd.dot(rJ->Jpdd);	//* 光度对逆深度hessian
+		Hcd_acc += rJ->Jpdc[0]*Ji2_Jpdd[0] + rJ->Jpdc[1]*Ji2_Jpdd[1]; //* 光度对内参J*光度对逆深度J
 
 		nres[tid]++;
 	}
-
+	//TODO 为啥, mode 如何决定的点的逆深度导数
 	if(mode==0)
 	{
 		p->Hdd_accAF = Hdd_acc;
 		p->bd_accAF = bd_acc;
 		p->Hcd_accAF = Hcd_acc;
 	}
+	//? L 和 A 代表啥
 	if(mode==1 || mode==2)
 	{
 		p->Hdd_accLF = Hdd_acc;
@@ -157,6 +161,7 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 	}
 
 }
+// 实例化
 template void AccumulatedTopHessianSSE::addPoint<0>(EFPoint* p, EnergyFunctional const * const ef, int tid);
 template void AccumulatedTopHessianSSE::addPoint<1>(EFPoint* p, EnergyFunctional const * const ef, int tid);
 template void AccumulatedTopHessianSSE::addPoint<2>(EFPoint* p, EnergyFunctional const * const ef, int tid);
@@ -237,36 +242,37 @@ void AccumulatedTopHessianSSE::stitchDouble(MatXX &H, VecX &b, EnergyFunctional 
 	}
 }
 
-
+//@ 
 void AccumulatedTopHessianSSE::stitchDoubleInternal(
 		MatXX* H, VecX* b, EnergyFunctional const * const EF, bool usePrior,
 		int min, int max, Vec10* stats, int tid)
 {
 	int toAggregate = NUM_THREADS;
+	// 不用多线程, 为啥不能统一一下
 	if(tid == -1) { toAggregate = 1; tid = 0; }	// special case: if we dont do multithreading, dont aggregate.
 	if(min==max) return;
 
 
-	for(int k=min;k<max;k++)
+	for(int k=min;k<max;k++) // 帧的范围 最大nframes[0]*nframes[0]
 	{
-		int h = k%nframes[0];
+		int h = k%nframes[0]; // 和两个循环一样
 		int t = k/nframes[0];
 
-		int hIdx = CPARS+h*8;
+		int hIdx = CPARS+h*8; // 起始元素id
 		int tIdx = CPARS+t*8;
-		int aidx = h+nframes[0]*t;
+		int aidx = h+nframes[0]*t; // 总的id
 
 		assert(aidx == k);
 
-		MatPCPC accH = MatPCPC::Zero();
+		MatPCPC accH = MatPCPC::Zero(); // (8+4+1)*(8+4+1)矩阵
 
 		for(int tid2=0;tid2 < toAggregate;tid2++)
 		{
 			acc[tid2][aidx].finish();
 			if(acc[tid2][aidx].num==0) continue;
-			accH += acc[tid2][aidx].H.cast<double>();
+			accH += acc[tid2][aidx].H.cast<double>(); // 不同线程之间的加起来
 		}
-
+		//* 相对的量通过adj变成绝对的量, 并累加到 H, b 中
 		H[tid].block<8,8>(hIdx, hIdx).noalias() += EF->adHost[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adHost[aidx].transpose();
 
 		H[tid].block<8,8>(tIdx, tIdx).noalias() += EF->adTarget[aidx] * accH.block<8,8>(CPARS,CPARS) * EF->adTarget[aidx].transpose();
@@ -283,21 +289,20 @@ void AccumulatedTopHessianSSE::stitchDoubleInternal(
 
 		b[tid].segment<8>(tIdx).noalias() += EF->adTarget[aidx] * accH.block<8,1>(CPARS,CPARS+8);
 
-		b[tid].head<CPARS>().noalias() += accH.block<CPARS,1>(0,CPARS+8);
+		b[tid].head<CPARS>().noalias() += accH.block<CPARS,1>(0,CPARS+8);  //! 残差 * 内参
 
 	}
 
-
+	//TODO 好好理解下这个delta_prior, 解决一直以来的问题
 	// only do this on one thread.
 	if(min==0 && usePrior)
 	{
-		H[tid].diagonal().head<CPARS>() += EF->cPrior;
-		b[tid].head<CPARS>() += EF->cPrior.cwiseProduct(EF->cDeltaF.cast<double>());
+		H[tid].diagonal().head<CPARS>() += EF->cPrior;	//! hessian先验
+		b[tid].head<CPARS>() += EF->cPrior.cwiseProduct(EF->cDeltaF.cast<double>()); //! H*delta 更新残差
 		for(int h=0;h<nframes[tid];h++)
 		{
-            H[tid].diagonal().segment<8>(CPARS+h*8) += EF->frames[h]->prior;
-            b[tid].segment<8>(CPARS+h*8) += EF->frames[h]->prior.cwiseProduct(EF->frames[h]->delta_prior);
-
+            H[tid].diagonal().segment<8>(CPARS+h*8) += EF->frames[h]->prior;	//! hessian先验
+            b[tid].segment<8>(CPARS+h*8) += EF->frames[h]->prior.cwiseProduct(EF->frames[h]->delta_prior); 
 		}
 	}
 }

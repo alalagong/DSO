@@ -54,7 +54,7 @@ namespace dso
 {
 
 
-
+//@ 对于关键帧的边缘化策略 1. 活跃点只剩下5%的; 2. 和最新关键帧曝光变化大于0.7; 3. 距离最远的关键帧
 void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 {
 	// TODO 怎么会有这种情况呢? 
@@ -69,7 +69,7 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 	}
 
 
-	int flagged = 0;
+	int flagged = 0;  // 标记为边缘化的个数
 	// marginalize all frames that have not enough points.
 	for(int i=0;i<(int)frameHessians.size();i++)
 	{
@@ -81,27 +81,27 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 		Vec2 refToFh=AffLight::fromToVecExposure(frameHessians.back()->ab_exposure, fh->ab_exposure,
 				frameHessians.back()->aff_g2l(), fh->aff_g2l());
 
-
+		//* 这一帧里的内点少, 曝光时间差的大, 并且边缘化掉后还有5-7帧, 则边缘化
 		if( (in < setting_minPointsRemaining *(in+out) || fabs(logf((float)refToFh[0])) > setting_maxLogAffFacInWindow)
 				&& ((int)frameHessians.size())-flagged > setting_minFrames)
 		{
-//			printf("MARGINALIZE frame %d, as only %'d/%'d points remaining (%'d %'d %'d %'d). VisInLast %'d / %'d. traces %d, activated %d!\n",
-//					fh->frameID, in, in+out,
-//					(int)fh->pointHessians.size(), (int)fh->immaturePoints.size(),
-//					(int)fh->pointHessiansMarginalized.size(), (int)fh->pointHessiansOut.size(),
-//					visInLast, outInLast,
-//					fh->statistics_tracesCreatedForThisFrame, fh->statistics_pointsActivatedForThisFrame);
+			//printf("MARGINALIZE frame %d, as only %'d/%'d points remaining (%'d %'d %'d %'d). VisInLast %'d / %'d. traces %d, activated %d!\n",
+			//		fh->frameID, in, in+out,
+			//		(int)fh->pointHessians.size(), (int)fh->immaturePoints.size(),
+			//		(int)fh->pointHessiansMarginalized.size(), (int)fh->pointHessiansOut.size(),
+			//		visInLast, outInLast,
+			//		fh->statistics_tracesCreatedForThisFrame, fh->statistics_pointsActivatedForThisFrame);
 			fh->flaggedForMarginalization = true;
 			flagged++;
 		}
 		else
 		{
-//			printf("May Keep frame %d, as %'d/%'d points remaining (%'d %'d %'d %'d). VisInLast %'d / %'d. traces %d, activated %d!\n",
-//					fh->frameID, in, in+out,
-//					(int)fh->pointHessians.size(), (int)fh->immaturePoints.size(),
-//					(int)fh->pointHessiansMarginalized.size(), (int)fh->pointHessiansOut.size(),
-//					visInLast, outInLast,
-//					fh->statistics_tracesCreatedForThisFrame, fh->statistics_pointsActivatedForThisFrame);
+			//printf("May Keep frame %d, as %'d/%'d points remaining (%'d %'d %'d %'d). VisInLast %'d / %'d. traces %d, activated %d!\n",
+			//		fh->frameID, in, in+out,
+			//		(int)fh->pointHessians.size(), (int)fh->immaturePoints.size(),
+			//		(int)fh->pointHessiansMarginalized.size(), (int)fh->pointHessiansOut.size(),
+			//		visInLast, outInLast,
+			//		fh->statistics_tracesCreatedForThisFrame, fh->statistics_pointsActivatedForThisFrame);
 		}
 	}
 
@@ -115,17 +115,21 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 
 		for(FrameHessian* fh : frameHessians)
 		{
+			//* 至少是setting_minFrameAge个之前的帧 (保留了当前帧)
 			if(fh->frameID > latest->frameID-setting_minFrameAge || fh->frameID == 0) continue;
 			//if(fh==frameHessians.front() == 0) continue;
 
 			double distScore = 0;
 			for(FrameFramePrecalc &ffh : fh->targetPrecalc)
 			{
+				// TODO 为啥加一 ??
 				if(ffh.target->frameID > latest->frameID-setting_minFrameAge+1 || ffh.target == ffh.host) continue;
-				distScore += 1/(1e-5+ffh.distanceLL);
+				distScore += 1/(1e-5+ffh.distanceLL); // 帧间距离
 
 			}
-			distScore *= -sqrtf(fh->targetPrecalc.back().distanceLL);
+			//* 有负号, 与最新帧距离占所有目标帧最大的被边缘化掉, 离得最远的, 
+			// 论文有提到, 启发式的良好的3D空间分布, 关键帧更接近
+			distScore *= -sqrtf(fh->targetPrecalc.back().distanceLL); 
 
 
 			if(distScore < smallestScore)

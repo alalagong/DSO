@@ -521,7 +521,7 @@ void FullSystem::traceNewCoarse(FrameHessian* fh)
 
 
 
-
+//@ 处理挑选出来待激活的点
 void FullSystem::activatePointsMT_Reductor(
 		std::vector<PointHessian*>* optimized,
 		std::vector<ImmaturePoint*>* toOptimize,
@@ -536,10 +536,12 @@ void FullSystem::activatePointsMT_Reductor(
 }
 
 
-
+//@ 激活未成熟点, 加入优化
 void FullSystem::activatePointsMT()
 {
-
+//[ ***step 1*** ] 阈值计算, 通过距离地图来控制数目
+	//currentMinActDist 初值为 2 
+	//* 这太牛逼了.....参数
 	if(ef->nPoints < setting_desiredPointDensity*0.66)
 		currentMinActDist -= 0.8;
 	if(ef->nPoints < setting_desiredPointDensity*0.8)
@@ -575,14 +577,15 @@ void FullSystem::activatePointsMT()
 
 	//coarseTracker->debugPlotDistMap("distMap");
 
-	std::vector<ImmaturePoint*> toOptimize; toOptimize.reserve(20000);
+	std::vector<ImmaturePoint*> toOptimize; toOptimize.reserve(20000); // 待激活的点
 
-
+//[ ***step 2*** ] 处理未成熟点, 激活/删除/跳过
 	for(FrameHessian* host : frameHessians)		// go through all active frames
 	{
 		if(host == newestHs) continue;
 
 		SE3 fhToNew = newestHs->PRE_worldToCam * host->PRE_camToWorld;
+		// 第0层到1层
 		Mat33f KRKi = (coarseDistanceMap->K[1] * fhToNew.rotationMatrix().cast<float>() * coarseDistanceMap->Ki[0]);
 		Vec3f Kt = (coarseDistanceMap->K[1] * fhToNew.translation().cast<float>());
 
@@ -598,10 +601,11 @@ void FullSystem::activatePointsMT()
 //				immature_invalid_deleted++;
 				// remove point.
 				delete ph;
-				host->immaturePoints[i]=0;
+				host->immaturePoints[i]=0; // 指针赋零
 				continue;
 			}
-
+			
+			//* 未成熟点的激活条件
 			// can activate only if this is true.
 			bool canActivate = (ph->lastTraceStatus == IPS_GOOD
 					|| ph->lastTraceStatus == IPS_SKIPPED
@@ -615,6 +619,7 @@ void FullSystem::activatePointsMT()
 			// if I cannot activate the point, skip it. Maybe also delete it.
 			if(!canActivate)
 			{
+				//* 删除被边缘化帧上的, 和OOB点
 				// if point will be out afterwards, delete it instead.
 				if(ph->host->flaggedForMarginalization || ph->lastTraceStatus == IPS_OOB)
 				{
@@ -634,10 +639,10 @@ void FullSystem::activatePointsMT()
 
 			if((u > 0 && v > 0 && u < wG[1] && v < hG[1]))
 			{
-
+				// 距离地图 + 小数点
 				float dist = coarseDistanceMap->fwdWarpedIDDistFinal[u+wG[1]*v] + (ptp[0]-floorf((float)(ptp[0])));
 
-				if(dist>=currentMinActDist* ph->my_type)
+				if(dist>=currentMinActDist* ph->my_type) // 点越多, 距离阈值越大
 				{
 					coarseDistanceMap->addIntoDistFinal(u,v);
 					toOptimize.push_back(ph);
@@ -654,7 +659,7 @@ void FullSystem::activatePointsMT()
 
 //	printf("ACTIVATE: %d. (del %d, notReady %d, marg %d, good %d, marg-skip %d)\n",
 //			(int)toOptimize.size(), immature_deleted, immature_notReady, immature_needMarg, immature_want, immature_margskip);
-
+//[ ***step 3*** ] 优化上一步挑出来的未成熟点, 进行逆深度优化, 并得到pointhessian
 	std::vector<PointHessian*> optimized; optimized.resize(toOptimize.size());
 
 	if(multiThreading)
@@ -663,7 +668,7 @@ void FullSystem::activatePointsMT()
 	else
 		activatePointsMT_Reductor(&optimized, &toOptimize, 0, toOptimize.size(), 0, 0);
 
-
+//[ ***step 4*** ] 把PointHessian加入到能量函数, 删除收敛的未成熟点, 或不好的点
 	for(unsigned k=0;k<toOptimize.size();k++)
 	{
 		PointHessian* newpoint = optimized[k];
@@ -673,9 +678,9 @@ void FullSystem::activatePointsMT()
 		{
 			newpoint->host->immaturePoints[ph->idxInImmaturePoints]=0;
 			newpoint->host->pointHessians.push_back(newpoint);
-			ef->insertPoint(newpoint);
+			ef->insertPoint(newpoint);		// 能量函数中插入点
 			for(PointFrameResidual* r : newpoint->residuals)
-				ef->insertResidual(r);
+				ef->insertResidual(r);		// 能量函数中插入残差
 			assert(newpoint->efPoint != 0);
 			delete ph;
 		}
@@ -690,14 +695,15 @@ void FullSystem::activatePointsMT()
 		}
 	}
 
-
+//[ ***step 5*** ] 把删除的点丢掉
 	for(FrameHessian* host : frameHessians)
 	{
 		for(int i=0;i<(int)host->immaturePoints.size();i++)
 		{
 			if(host->immaturePoints[i]==0)
 			{
-				host->immaturePoints[i] = host->immaturePoints.back();
+				//bug 如果back的也是空的呢
+				host->immaturePoints[i] = host->immaturePoints.back(); // 没有顺序要求, 直接最后一个给空的
 				host->immaturePoints.pop_back();
 				i--;
 			}
@@ -1088,7 +1094,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	boost::unique_lock<boost::mutex> lock(mapMutex); // 建图锁
 
-//[ ***step 3*** ]
+//[ ***step 3*** ] 选择要边缘化掉的帧
 	// =========================== Flag Frames to be Marginalized. =========================
 	flagFramesForMarginalization(fh);
 
@@ -1103,13 +1109,13 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	setPrecalcValues();	// 每添加一个关键帧都会运行这个来设置位姿, 设置位姿线性化点
 
 
-//[ ***step 5*** ] 构建之前关键帧与当前帧fh的残差
+//[ ***step 5*** ] 构建之前关键帧与当前帧fh的残差(旧的)
 	// =========================== add new residuals for old points =========================
 	int numFwdResAdde=0;
 	for(FrameHessian* fh1 : frameHessians)		// go through all active frames
 	{
 		if(fh1 == fh) continue;
-		for(PointHessian* ph : fh1->pointHessians)
+		for(PointHessian* ph : fh1->pointHessians)  // 全都构造之后再删除
 		{
 			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh); // 新建当前帧fh和之前帧之间的残差
 			r->setState(ResState::IN);
@@ -1123,7 +1129,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 
-
+//[ ***step 6*** ] 激活所有关键帧上的部分未成熟点(构造新的残差)
 	// =========================== Activate Points (& flag for marginalization). =========================
 	activatePointsMT();
 	ef->makeIDX();  // ? 为啥要重新设置ID呢, 是因为加新的帧了么
@@ -1133,7 +1139,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	// =========================== OPTIMIZE ALL =========================
 
-	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
+	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;  // 这两个不是一个值么???
 	float rmse = optimize(setting_maxOptIterations);
 
 
@@ -1353,12 +1359,13 @@ void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 
 //TODO 需要好好理解这个设置的是啥
 //* 计算frameHessian的预计算值, 和状态的delta值
+//@ 设置关键帧之间的关系
 void FullSystem::setPrecalcValues()
 {
 	for(FrameHessian* fh : frameHessians)
 	{
 		fh->targetPrecalc.resize(frameHessians.size()); // 每个目标帧预运算容器, 大小是关键帧数
-		for(unsigned int i=0;i<frameHessians.size();i++) 
+		for(unsigned int i=0;i<frameHessians.size();i++)  //? 还有自己和自己的???
 			fh->targetPrecalc[i].set(fh, frameHessians[i], &Hcalib); // 计算Host 与 target之间的变换关系
 	}
 

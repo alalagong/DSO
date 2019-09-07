@@ -44,7 +44,7 @@ public:
 	EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	inline AccumulatedSCHessianSSE()
 	{
-		for(int i=0;i<NUM_THREADS;i++)
+		for(int i=0;i<NUM_THREADS;i++) // 多线程
 		{
 			accE[i]=0;
 			accEB[i]=0;

@@ -76,7 +76,7 @@ public:
 	FrameHessian* host;
 	int idxInImmaturePoints;
 
-	float quality;				//!< 第二小/第一小 作为搜索质量, 越小越好
+	float quality;				//!< 第二误差/第一误差 作为搜索质量, 越大越好
 
 	float my_type;
 

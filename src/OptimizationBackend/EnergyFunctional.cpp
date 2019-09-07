@@ -40,9 +40,9 @@ namespace dso
 
 bool EFAdjointsValid = false;		//!< 是否设置状态伴随矩阵
 bool EFIndicesValid = false;		//!< 是否设置frame, point, res的ID
-bool EFDeltaValid = false;
+bool EFDeltaValid = false;			//!< 是否设置状态增量值
 
-//* 计算adHost(F), adTarget(F)
+//@ 计算adHost(F), adTarget(F)
 // 传的参数也没用啊
 void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 {
@@ -64,7 +64,7 @@ void EnergyFunctional::setAdjointsF(CalibHessian* Hcalib)
 			Mat88 AT = Mat88::Identity();
 			
 			// 见笔记推导吧, 或者https://www.cnblogs.com/JingeTU/p/9077372.html
-			AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose();
+			AH.topLeftCorner<6,6>() = -hostToTarget.Adj().transpose(); // bug 有转置么
 			AT.topLeftCorner<6,6>() = Mat66::Identity();
 
 			// 光度参数, 合并项对参数求导
@@ -125,7 +125,7 @@ EnergyFunctional::EnergyFunctional()
 
 	nFrames = nResiduals = nPoints = 0;
 
-	HM = MatXX::Zero(CPARS,CPARS);
+	HM = MatXX::Zero(CPARS,CPARS); // 初始的, 后面增加frame改变
 	bM = VecX::Zero(CPARS);
 
 
@@ -171,7 +171,7 @@ EnergyFunctional::~EnergyFunctional()
 
 
 
-//* 计算各种状态的增量
+//@ 计算各种状态的增量
 void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 {
 	if(adHTdeltaF != 0) delete[] adHTdeltaF;
@@ -181,7 +181,7 @@ void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 		{
 			int idx = h+t*nFrames;
 			//! delta_th = Adj * delta_t or delta_th = Adj * delta_h
-			// 加一起应该是, 两帧之间位姿变换的增量
+			// 加一起应该是, 两帧之间位姿变换的增量, 因为h变一点, t变一点
 			adHTdeltaF[idx] = frames[h]->data->get_state_minus_stateZero().head<8>().cast<float>().transpose() * adHostF[idx]
 					        +frames[t]->data->get_state_minus_stateZero().head<8>().cast<float>().transpose() * adTargetF[idx];
 		}
@@ -200,7 +200,9 @@ void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 	EFDeltaValid = true;
 }
 
+
 // accumulates & shifts L.
+//@
 void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 {
 	if(MT)
@@ -216,7 +218,7 @@ void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 		accSSE_top_A->setZero(nFrames);
 		for(EFFrame* f : frames)
 			for(EFPoint* p : f->points)
-				accSSE_top_A->addPoint<0>(p,this);
+				accSSE_top_A->addPoint<0>(p,this); // mode 0
 		accSSE_top_A->stitchDoubleMT(red,H,b,this,false,false);
 		resInA = accSSE_top_A->nres[0];
 	}
@@ -323,7 +325,8 @@ void EnergyFunctional::resubstituteFPt(
 	}
 }
 
-
+//@ 也是求能量, 使用HM和bM求的, delta是绝对的
+//TODO MEnerage和LEnerage有啥区别
 double EnergyFunctional::calcMEnergyF()
 {
 
@@ -335,7 +338,7 @@ double EnergyFunctional::calcMEnergyF()
 	return delta.dot(2*bM + HM*delta);
 }
 
-
+//@ 计算所有点的能量E之和
 void EnergyFunctional::calcLEnergyPt(int min, int max, Vec10* stats, int tid)
 {
 
@@ -350,7 +353,7 @@ void EnergyFunctional::calcLEnergyPt(int min, int max, Vec10* stats, int tid)
 
 		for(EFResidual* r : p->residualsAll)
 		{
-			if(!r->isLinearized || !r->isActive()) continue;
+			if(!r->isLinearized || !r->isActive()) continue; // 同时满足
 
 			Mat18f dp = adHTdeltaF[r->hostIDX+nFrames*r->targetIDX];
 			RawResidualJacobian* rJ = r->J;
@@ -373,7 +376,9 @@ void EnergyFunctional::calcLEnergyPt(int min, int max, Vec10* stats, int tid)
 
 			for(int i=0;i+3<patternNum;i+=4)
 			{
-				// PATTERN: E = (2*res_toZeroF + J*delta) * J*delta.
+				// TODO resb_toZeroF里的 delta_x 和现在的 delta_x 一样么
+				//! PATTERN: E = (2*resb_toZeroF + J*delta) * J*delta.
+				//! E = (f(x0)+J*dx)^2 = dx*H*dx + 2*J*dx*f(x0) + f(x0)^2 丢掉常数 f(x0)^2
 				__m128 Jdelta =            _mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx))+i),Jp_delta_x);
 				Jdelta = _mm_add_ps(Jdelta,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx+1))+i),Jp_delta_y));
 				Jdelta = _mm_add_ps(Jdelta,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JabF))+i),delta_a));
@@ -383,16 +388,17 @@ void EnergyFunctional::calcLEnergyPt(int min, int max, Vec10* stats, int tid)
 				r0 = _mm_add_ps(r0,r0);
 				r0 = _mm_add_ps(r0,Jdelta);
 				Jdelta = _mm_mul_ps(Jdelta,r0);
-				E.updateSSENoShift(Jdelta);
+				E.updateSSENoShift(Jdelta); // 累加
 			}
-			for(int i=((patternNum>>2)<<2); i < patternNum; i++)
+			// 128位对齐, 多出来部分
+			for(int i=((patternNum>>2)<<2); i < patternNum; i++)  //* %4 的余数
 			{
 				float Jdelta = rJ->JIdx[0][i]*Jp_delta_x_1 + rJ->JIdx[1][i]*Jp_delta_y_1 +
 								rJ->JabF[0][i]*dp[6] + rJ->JabF[1][i]*dp[7];
 				E.updateSingleNoShift((float)(Jdelta * (Jdelta + 2*r->res_toZeroF[i])));
 			}
 		}
-		E.updateSingle(p->deltaF*p->deltaF*p->priorF);
+		E.updateSingle(p->deltaF*p->deltaF*p->priorF); // 逆深度先验
 	}
 	E.finish();
 	(*stats)[0] += E.A;
@@ -400,7 +406,7 @@ void EnergyFunctional::calcLEnergyPt(int min, int max, Vec10* stats, int tid)
 
 
 
-
+//@ MT是多线程, 计算能量, 包括 先验 + 点残差平方
 double EnergyFunctional::calcLEnergyF_MT()
 {
 	assert(EFDeltaValid);
@@ -408,10 +414,12 @@ double EnergyFunctional::calcLEnergyF_MT()
 	assert(EFIndicesValid);
 
 	double E = 0;
+	//! 先验的能量 (x-x_prior)^T * ∑ * (x-x_prior)
+	//* 因为 f->prior 是hessian的对角线, 使用向量表示, 所以使用cwiseProduct进行逐个相乘
 	for(EFFrame* f : frames)
-        E += f->delta_prior.cwiseProduct(f->prior).dot(f->delta_prior);
+        E += f->delta_prior.cwiseProduct(f->prior).dot(f->delta_prior); // 位姿先验
 
-	E += cDeltaF.cwiseProduct(cPriorF).dot(cDeltaF);
+	E += cDeltaF.cwiseProduct(cPriorF).dot(cDeltaF); // 相机内参先验
 
 	red->reduce(boost::bind(&EnergyFunctional::calcLEnergyPt,
 			this, _1, _2, _3, _4), 0, allPoints.size(), 50);
@@ -420,13 +428,14 @@ double EnergyFunctional::calcLEnergyF_MT()
 }
 
 
-
+//@ 向能量函数中插入一残差, 更新连接图关系
 EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 {
 	EFResidual* efr = new EFResidual(r, r->point->efPoint, r->host->efFrame, r->target->efFrame);
-	efr->idxInAll = r->point->efPoint->residualsAll.size();
-	r->point->efPoint->residualsAll.push_back(efr);
+	efr->idxInAll = r->point->efPoint->residualsAll.size(); // 在这个点的所有残差的id
+	r->point->efPoint->residualsAll.push_back(efr); // 这个点的所有残差
 
+	// 两帧之间的res计数加一
     connectivityMap[(((uint64_t)efr->host->frameID) << 32) + ((uint64_t)efr->target->frameID)][0]++;
 
 	nResiduals++;
@@ -434,7 +443,7 @@ EFResidual* EnergyFunctional::insertResidual(PointFrameResidual* r)
 	return efr;
 }
 
-//* 向能量函数中增加一帧, 进行的操作: 改变正规方程, 重新排ID, 共视关系
+//@ 向能量函数中增加一帧, 进行的操作: 改变正规方程, 重新排ID, 共视关系
 EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 {
 	// 建立优化用的能量函数帧. 并加进能量函数frames中
@@ -473,6 +482,7 @@ EFFrame* EnergyFunctional::insertFrame(FrameHessian* fh, CalibHessian* Hcalib)
 	return eff;
 }
 
+//@ 向能量函数中插入一个点, 放入对应的EFframe
 EFPoint* EnergyFunctional::insertPoint(PointHessian* ph)
 {
 	EFPoint* efp = new EFPoint(ph, ph->host->efFrame);
@@ -482,33 +492,34 @@ EFPoint* EnergyFunctional::insertPoint(PointHessian* ph)
 	nPoints++;
 	ph->efPoint = efp;
 
-	EFIndicesValid = false;
+	EFIndicesValid = false; // 有插入需要重新梳理残差的ID
 
 	return efp;
 }
 
-
+//@ 丢掉一个residual, 并更新关系
 void EnergyFunctional::dropResidual(EFResidual* r)
 {
 	EFPoint* p = r->point;
 	assert(r == p->residualsAll[r->idxInAll]);
 
-	p->residualsAll[r->idxInAll] = p->residualsAll.back();
-	p->residualsAll[r->idxInAll]->idxInAll = r->idxInAll;
-	p->residualsAll.pop_back();
+	p->residualsAll[r->idxInAll] = p->residualsAll.back(); 	// 最后一个给当前的
+	p->residualsAll[r->idxInAll]->idxInAll = r->idxInAll;	// 当前的id变成现在位置的
+	p->residualsAll.pop_back();		// 弹出最有一个
 
-
+	// 计数
 	if(r->isActive())
 		r->host->data->shell->statistics_goodResOnThis++;
 	else
 		r->host->data->shell->statistics_outlierResOnThis++;
 
-
+	// residual关键减一
     connectivityMap[(((uint64_t)r->host->frameID) << 32) + ((uint64_t)r->target->frameID)][0]--;
 	nResiduals--;
-	r->data->efResidual=0;
+	r->data->efResidual=0; // pointframehessian指向该残差的指针
 	delete r;
 }
+
 void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 {
 
@@ -521,9 +532,9 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	int odim = nFrames*8+CPARS;// old dimension
 
 
-//	VecX eigenvaluesPre = HM.eigenvalues().real();
-//	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
-//
+	//	VecX eigenvaluesPre = HM.eigenvalues().real();
+	//	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
+	//
 
 
 
@@ -550,21 +561,21 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 	}
 
 
-//	// marginalize. First add prior here, instead of to active.
+	// marginalize. First add prior here, instead of to active.
     HM.bottomRightCorner<8,8>().diagonal() += fh->prior;
     bM.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
 
 
 
-//	std::cout << std::setprecision(16) << "HMPre:\n" << HM << "\n\n";
+	//	std::cout << std::setprecision(16) << "HMPre:\n" << HM << "\n\n";
 
 
 	VecX SVec = (HM.diagonal().cwiseAbs()+VecX::Constant(HM.cols(), 10)).cwiseSqrt();
 	VecX SVecI = SVec.cwiseInverse();
 
 
-//	std::cout << std::setprecision(16) << "SVec: " << SVec.transpose() << "\n\n";
-//	std::cout << std::setprecision(16) << "SVecI: " << SVecI.transpose() << "\n\n";
+	//	std::cout << std::setprecision(16) << "SVec: " << SVec.transpose() << "\n\n";
+	//	std::cout << std::setprecision(16) << "SVecI: " << SVecI.transpose() << "\n\n";
 
 	// scale!
 	MatXX HMScaled = SVecI.asDiagonal() * HM * SVecI.asDiagonal();
@@ -607,14 +618,14 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 
 
-//	VecX eigenvaluesPost = HM.eigenvalues().real();
-//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
+	//	VecX eigenvaluesPost = HM.eigenvalues().real();
+	//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
 
-//	std::cout << std::setprecision(16) << "HMPost:\n" << HM << "\n\n";
+	//	std::cout << std::setprecision(16) << "HMPost:\n" << HM << "\n\n";
 
-//	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
-//	std::cout << "EigPost: " << eigenvaluesPost.transpose() << "\n";
-
+	//	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
+	//	std::cout << "EigPost: " << eigenvaluesPost.transpose() << "\n";
+	
 	EFIndicesValid = false;
 	EFAdjointsValid=false;
 	EFDeltaValid=false;
@@ -731,19 +742,19 @@ void EnergyFunctional::removePoint(EFPoint* p)
 
 void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 {
-//	VecX eigenvaluesPre = H.eigenvalues().real();
-//	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
-//	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
-
+	//	VecX eigenvaluesPre = H.eigenvalues().real();
+	//	std::sort(eigenvaluesPre.data(), eigenvaluesPre.data()+eigenvaluesPre.size());
+	//	std::cout << "EigPre:: " << eigenvaluesPre.transpose() << "\n";
+	
 
 	// decide to which nullspaces to orthogonalize.
 	std::vector<VecX> ns;
 	ns.insert(ns.end(), lastNullspaces_pose.begin(), lastNullspaces_pose.end());
 	ns.insert(ns.end(), lastNullspaces_scale.begin(), lastNullspaces_scale.end());
-//	if(setting_affineOptModeA <= 0)
-//		ns.insert(ns.end(), lastNullspaces_affA.begin(), lastNullspaces_affA.end());
-//	if(setting_affineOptModeB <= 0)
-//		ns.insert(ns.end(), lastNullspaces_affB.begin(), lastNullspaces_affB.end());
+	//	if(setting_affineOptModeA <= 0)
+	//		ns.insert(ns.end(), lastNullspaces_affA.begin(), lastNullspaces_affA.end());
+	//	if(setting_affineOptModeB <= 0)
+	//		ns.insert(ns.end(), lastNullspaces_affB.begin(), lastNullspaces_affB.end());
 
 
 
@@ -777,18 +788,18 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 	if(H!=0) *H -= NNpiTS * *H * NNpiTS;
 
 
-//	std::cout << std::setprecision(16) << "Orth SV: " << SNN.reverse().transpose() << "\n";
+	//	std::cout << std::setprecision(16) << "Orth SV: " << SNN.reverse().transpose() << "\n";
 
-//	VecX eigenvaluesPost = H.eigenvalues().real();
-//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
-//	std::cout << "EigPost:: " << eigenvaluesPost.transpose() << "\n";
+	//	VecX eigenvaluesPost = H.eigenvalues().real();
+	//	std::sort(eigenvaluesPost.data(), eigenvaluesPost.data()+eigenvaluesPost.size());
+	//	std::cout << "EigPost:: " << eigenvaluesPost.transpose() << "\n";
 
 }
 
-
+//@ 
 void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* HCalib)
 {
-	if(setting_solverMode & SOLVER_USE_GN) lambda=0;
+	if(setting_solverMode & SOLVER_USE_GN) lambda=0;			// 不同的位控制不同的模式
 	if(setting_solverMode & SOLVER_FIX_LAMBDA) lambda = 1e-5;
 
 	assert(EFDeltaValid);
@@ -797,7 +808,8 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 	MatXX HL_top, HA_top, H_sc;
 	VecX  bL_top, bA_top, bM_top, b_sc;
-
+	
+	//* 
 	accumulateAF_MT(HA_top, bA_top,multiThreading);
 
 
@@ -936,7 +948,7 @@ void EnergyFunctional::makeIDX()
 	allPoints.clear();
 
 	for(EFFrame* f : frames)
-		for(EFPoint* p : f->points) //? points 在哪设置的
+		for(EFPoint* p : f->points) 
 		{
 			allPoints.push_back(p);
 			// 残差的ID号
@@ -951,11 +963,12 @@ void EnergyFunctional::makeIDX()
 	EFIndicesValid=true;
 }
 
-
+//@ 返回状态增量, 这里帧位姿和光度参数, 使用的是每一帧绝对的
 VecX EnergyFunctional::getStitchedDeltaF() const
 {
-	VecX d = VecX(CPARS+nFrames*8); d.head<CPARS>() = cDeltaF.cast<double>();
-	for(int h=0;h<nFrames;h++) d.segment<8>(CPARS+8*h) = frames[h]->delta;
+	VecX d = VecX(CPARS+nFrames*8); d.head<CPARS>() = cDeltaF.cast<double>(); // 相机内参增量
+	for(int h=0;h<nFrames;h++) d.segment<8>(CPARS+8*h) = frames[h]->delta;  
+	// TODO frames[h]->delta和frames[h]->data->get_state_minus_stateZero()有啥区别
 	return d;
 }
 

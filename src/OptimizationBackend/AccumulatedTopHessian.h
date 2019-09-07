@@ -61,10 +61,10 @@ public:
 			if(acc[tid] != 0) delete[] acc[tid];
 		}
 	};
-
+	//@ 初始化
 	inline void setZero(int nFrames, int min=0, int max=1, Vec10* stats=0, int tid=0)
 	{
-
+		//? 什么情况下不等
 		if(nFrames != nframes[tid])
 		{
 			if(acc[tid] != 0) delete[] acc[tid];
@@ -75,6 +75,7 @@ public:
 #endif
 		}
 
+		// 初始化, 设置初值
 		for(int i=0;i<nFrames*nFrames;i++)
 		{ acc[tid][i].initialize(); }
 
@@ -87,7 +88,7 @@ public:
 	template<int mode> void addPoint(EFPoint* p, EnergyFunctional const * const ef, int tid=0);
 
 
-
+	//@ 获得最终的 H 和 b 
 	void stitchDoubleMT(IndexThreadReduce<Vec10>* red, MatXX &H, VecX &b, EnergyFunctional const * const EF, bool usePrior, bool MT)
 	{
 		// sum up, splitting by bock in square.
@@ -98,7 +99,8 @@ public:
 			for(int i=0;i<NUM_THREADS;i++)
 			{
 				assert(nframes[0] == nframes[i]);
-				Hs[i] = MatXX::Zero(nframes[0]*8+CPARS, nframes[0]*8+CPARS);
+				//* 所有的优化变量维度
+				Hs[i] = MatXX::Zero(nframes[0]*8+CPARS, nframes[0]*8+CPARS); 
 				bs[i] = VecX::Zero(nframes[0]*8+CPARS);
 			}
 
@@ -108,7 +110,7 @@ public:
 			// sum up results
 			H = Hs[0];
 			b = bs[0];
-
+			//* 所有线程求和
 			for(int i=1;i<NUM_THREADS;i++)
 			{
 				H.noalias() += Hs[i];
@@ -116,7 +118,7 @@ public:
 				nres[0] += nres[i];
 			}
 		}
-		else
+		else // 不使用多线程
 		{
 			H = MatXX::Zero(nframes[0]*8+CPARS, nframes[0]*8+CPARS);
 			b = VecX::Zero(nframes[0]*8+CPARS);
@@ -127,11 +129,12 @@ public:
 		for(int h=0;h<nframes[0];h++)
 		{
 			int hIdx = CPARS+h*8;
-			H.block<CPARS,8>(0,hIdx).noalias() = H.block<8,CPARS>(hIdx,0).transpose();
+			H.block<CPARS,8>(0,hIdx).noalias() = H.block<8,CPARS>(hIdx,0).transpose(); //! [内参, 位姿] 对称部分
 
 			for(int t=h+1;t<nframes[0];t++)
 			{
 				int tIdx = CPARS+t*8;
+				//! 对于位姿, 相同两帧之间的Hessian需要加起来, 即对称位置的, (J差负号, 平方之后就好了)
 				H.block<8,8>(hIdx, tIdx).noalias() += H.block<8,8>(tIdx, hIdx).transpose();
 				H.block<8,8>(tIdx, hIdx).noalias() = H.block<8,8>(hIdx, tIdx).transpose();
 			}
@@ -141,12 +144,12 @@ public:
 
 
 
-	int nframes[NUM_THREADS];
+	int nframes[NUM_THREADS];							//!< 每个线程的帧数
 
-	EIGEN_ALIGN16 AccumulatorApprox* acc[NUM_THREADS];
+	EIGEN_ALIGN16 AccumulatorApprox* acc[NUM_THREADS]; 	//!< 计算hessian的累乘器
 
 
-	int nres[NUM_THREADS];
+	int nres[NUM_THREADS];								//!< 残差计数
 
 
 	template<int mode> void addPointsInternal(

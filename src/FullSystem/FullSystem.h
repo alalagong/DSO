@@ -267,18 +267,18 @@ private:
 	std::vector<FrameShell*> allKeyFramesHistory;
 
 	EnergyFunctional* ef;			//!< 能量方程
-	IndexThreadReduce<Vec10> treadReduce;
+	IndexThreadReduce<Vec10> treadReduce; //!< 多线程
 
 	float* selectionMap;
 	PixelSelector* pixelSelector;
 	CoarseDistanceMap* coarseDistanceMap;
 
 	std::vector<FrameHessian*> frameHessians;	//!< 关键帧 // ONLY changed in marginalizeFrame and addFrame.
-	std::vector<PointFrameResidual*> activeResiduals;
-	float currentMinActDist;
+	std::vector<PointFrameResidual*> activeResiduals;  //!< 新加入的激活点的残差
+	float currentMinActDist;			//!<　激活点的阈值
 
 
-	std::vector<float> allResVec;
+	std::vector<float> allResVec; 		//!< 所有在当前最近帧上的残差值
 
 
 

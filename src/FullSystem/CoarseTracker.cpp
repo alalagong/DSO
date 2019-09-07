@@ -847,6 +847,7 @@ void CoarseTracker::debugPlotIDepthMapFloat(std::vector<IOWrap::Output3DWrapper*
 
 CoarseDistanceMap::CoarseDistanceMap(int ww, int hh)
 {
+	//* 在第一层上算的, 所以除4
 	fwdWarpedIDDistFinal = new float[ww*hh/4];
 
 	bfsList1 = new Eigen::Vector2i[ww*hh/4];
@@ -872,12 +873,12 @@ CoarseDistanceMap::~CoarseDistanceMap()
 
 
 
-
+//@ 对于目前所有的地图点投影, 生成距离场图
 void CoarseDistanceMap::makeDistanceMap(
 		std::vector<FrameHessian*> frameHessians,
 		FrameHessian* frame)
 {
-	int w1 = w[1];
+	int w1 = w[1]; //? 为啥使用第一层的
 	int h1 = h[1];
 	int wh1 = w1*h1;
 	for(int i=0;i<wh1;i++)
@@ -892,13 +893,13 @@ void CoarseDistanceMap::makeDistanceMap(
 		if(frame == fh) continue;
 
 		SE3 fhToNew = frame->PRE_worldToCam * fh->PRE_camToWorld;
-		Mat33f KRKi = (K[1] * fhToNew.rotationMatrix().cast<float>() * Ki[0]);
+		Mat33f KRKi = (K[1] * fhToNew.rotationMatrix().cast<float>() * Ki[0]); // 0层到1层变换
 		Vec3f Kt = (K[1] * fhToNew.translation().cast<float>());
 
 		for(PointHessian* ph : fh->pointHessians)
 		{
 			assert(ph->status == PointHessian::ACTIVE);
-			Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt*ph->idepth_scaled;
+			Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt*ph->idepth_scaled; // 投影到frame帧
 			int u = ptp[0] / ptp[2] + 0.5f;
 			int v = ptp[1] / ptp[2] + 0.5f;
 			if(!(u > 0 && v > 0 && u < w[1] && v < h[1])) continue;
@@ -920,7 +921,7 @@ void CoarseDistanceMap::makeInlierVotes(std::vector<FrameHessian*> frameHessians
 }
 
 
-
+//@ 生成每一层的距离, 第一层为1, 第二层为2....
 void CoarseDistanceMap::growDistBFS(int bfsNum)
 {
 	assert(w[0] != 0);
@@ -928,10 +929,11 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 	for(int k=1;k<40;k++)
 	{
 		int bfsNum2 = bfsNum;
-		std::swap<Eigen::Vector2i*>(bfsList1,bfsList2);
+		//* 每一次都是在上一次的点周围找
+		std::swap<Eigen::Vector2i*>(bfsList1,bfsList2); // 每次迭代一遍就交换
 		bfsNum=0;
 
-		if(k%2==0)
+		if(k%2==0) // 偶数
 		{
 			for(int i=0;i<bfsNum2;i++)
 			{
@@ -939,22 +941,26 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 				int y = bfsList2[i][1];
 				if(x==0 || y== 0 || x==w1-1 || y==h1-1) continue;
 				int idx = x + y * w1;
-
-				if(fwdWarpedIDDistFinal[idx+1] > k)
+				
+				//* 右边
+				if(fwdWarpedIDDistFinal[idx+1] > k) // 没有赋值的位置
 				{
-					fwdWarpedIDDistFinal[idx+1] = k;
+					fwdWarpedIDDistFinal[idx+1] = k; // 赋值为2, 4, 6 ....
 					bfsList1[bfsNum] = Eigen::Vector2i(x+1,y); bfsNum++;
 				}
+				//* 左边
 				if(fwdWarpedIDDistFinal[idx-1] > k)
 				{
 					fwdWarpedIDDistFinal[idx-1] = k;
 					bfsList1[bfsNum] = Eigen::Vector2i(x-1,y); bfsNum++;
 				}
+				//* 下边
 				if(fwdWarpedIDDistFinal[idx+w1] > k)
 				{
 					fwdWarpedIDDistFinal[idx+w1] = k;
 					bfsList1[bfsNum] = Eigen::Vector2i(x,y+1); bfsNum++;
 				}
+				//* 上边
 				if(fwdWarpedIDDistFinal[idx-w1] > k)
 				{
 					fwdWarpedIDDistFinal[idx-w1] = k;
@@ -970,7 +976,7 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 				int y = bfsList2[i][1];
 				if(x==0 || y== 0 || x==w1-1 || y==h1-1) continue;
 				int idx = x + y * w1;
-
+				//* 上下左右
 				if(fwdWarpedIDDistFinal[idx+1] > k)
 				{
 					fwdWarpedIDDistFinal[idx+1] = k;
@@ -992,6 +998,7 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 					bfsList1[bfsNum] = Eigen::Vector2i(x,y-1); bfsNum++;
 				}
 
+				//* 四个角
 				if(fwdWarpedIDDistFinal[idx+1+w1] > k)
 				{
 					fwdWarpedIDDistFinal[idx+1+w1] = k;
@@ -1017,7 +1024,7 @@ void CoarseDistanceMap::growDistBFS(int bfsNum)
 	}
 }
 
-
+//@ 在点(u, v)附近生成距离场
 void CoarseDistanceMap::addIntoDistFinal(int u, int v)
 {
 	if(w[0] == 0) return;

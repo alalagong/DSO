@@ -47,11 +47,12 @@ namespace dso
 {
 
 
-
+//@ 优化未成熟点逆深度, 并创建成PointHessian
 PointHessian* FullSystem::optimizeImmaturePoint(
 		ImmaturePoint* point, int minObs,
 		ImmaturePointTemporaryResidual* residuals)
 {
+//[ ***step 1*** ] 初始化和其它关键帧的res
 	int nres = 0;
 	for(FrameHessian* fh : frameHessians)
 	{
@@ -61,7 +62,7 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 			residuals[nres].state_NewState = ResState::OUTLIER;
 			residuals[nres].state_state = ResState::IN;
 			residuals[nres].target = fh;
-			nres++;
+			nres++; // 观测数
 		}
 	}
 	assert(nres == ((int)frameHessians.size())-1);
@@ -77,7 +78,8 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 
 
 
-
+//[ ***step 2*** ] 使用类LM(GN)的方法来优化逆深度, 而不是使用三角化
+//TODO 这种优化求的方法, 和三角化的方法, 哪个更好些
 	for(int i=0;i<nres;i++)
 	{
 		lastEnergy += point->linearizeResidual(&Hcalib, 1000, residuals+i,lastHdd, lastbd, currentIdepth);
@@ -150,10 +152,11 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	if(!std::isfinite(currentIdepth))
 	{
 		printf("MAJOR ERROR! point idepth is nan after initialization (%f).\n", currentIdepth);
+		// 丢弃无穷的点
 		return (PointHessian*)((long)(-1));		// yeah I'm like 99% sure this is OK on 32bit systems.
 	}
 
-
+	//* 所有观测里面统计good数, 小了则返回
 	int numGoodRes=0;
 	for(int i=0;i<nres;i++)
 		if(residuals[i].state_state == ResState::IN) numGoodRes++;
@@ -161,22 +164,24 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 	if(numGoodRes < minObs)
 	{
 		if(print) printf("OptPoint: OUTLIER!\n");
+		//! niubility
 		return (PointHessian*)((long)(-1));		// yeah I'm like 99% sure this is OK on 32bit systems.
 	}
 
 
-
+//[ ***step 3*** ] 把可以的点创建成PointHessian
 	PointHessian* p = new PointHessian(point, &Hcalib);
-	if(!std::isfinite(p->energyTH)) {delete p; return (PointHessian*)((long)(-1));}
+	if(!std::isfinite(p->energyTH)) {delete p; return (PointHessian*)((long)(-1));} // 丢弃无穷的点
 
 	p->lastResiduals[0].first = 0;
 	p->lastResiduals[0].second = ResState::OOB;
 	p->lastResiduals[1].first = 0;
 	p->lastResiduals[1].second = ResState::OOB;
-	p->setIdepthZero(currentIdepth);
+	p->setIdepthZero(currentIdepth); // 设置线性化处逆深度
 	p->setIdepth(currentIdepth);
 	p->setPointStatus(PointHessian::ACTIVE);
 
+	//* 计算PointFrameResidual
 	for(int i=0;i<nres;i++)
 		if(residuals[i].state_state == ResState::IN)
 		{
@@ -186,12 +191,12 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 			r->setState(ResState::IN);
 			p->residuals.push_back(r);
 
-			if(r->target == frameHessians.back())
+			if(r->target == frameHessians.back()) // 和最新帧的残差
 			{
 				p->lastResiduals[0].first = r;
 				p->lastResiduals[0].second = ResState::IN;
 			}
-			else if(r->target == (frameHessians.size()<2 ? 0 : frameHessians[frameHessians.size()-2]))
+			else if(r->target == (frameHessians.size()<2 ? 0 : frameHessians[frameHessians.size()-2])) // 和最新帧上一帧
 			{
 				p->lastResiduals[1].first = r;
 				p->lastResiduals[1].second = ResState::IN;
