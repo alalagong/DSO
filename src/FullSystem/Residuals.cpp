@@ -97,7 +97,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	float b0 = precalc->PRE_b0_mode;		// 主帧的单独 b
 
 	
-	//! x=0时候求光度和几何的导数, 使用FEJ!!
+	//! x=0时候求光度和几何的导数, 使用FEJ!! ,逆深度没有使用FEJ
 	Vec6f d_xi_x, d_xi_y;
 	Vec4f d_C_x, d_C_y;
 	float d_d_x, d_d_y;
@@ -105,7 +105,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 		float drescale, u, v, new_idepth;
 		float Ku, Kv;
 		Vec3f KliP;
-
+		
 		if(!projectPoint(point->u, point->v, point->idepth_zero_scaled, 0, 0,HCalib,
 				PRE_RTll_0,PRE_tTll_0, drescale, u, v, Ku, Kv, KliP, new_idepth))
 			{ state_NewState = ResState::OOB; return state_energy; } // 投影不在图像里, 则返回OOB
@@ -197,7 +197,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	for(int idx=0;idx<patternNum;idx++)
 	{
 		float Ku, Kv;
-		//? 为啥这里使用idepth_scaled, 上面使用的是zero
+		//? 为啥这里使用idepth_scaled, 上面使用的是zero, 其实和上面一样的....同时调用了setIdepth() setIdepthZero()
 		//! 答: 这里是求图像导数, 由于线性误差大, 就不使用FEJ, 所以使用当前的状态
 		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
 			{ state_NewState = ResState::OOB; return state_energy; }
@@ -330,7 +330,7 @@ void PointFrameResidual::debugPlot()
 }
 
 
-//@ 把计算的残差,雅克比值给EFResidual
+//@ 把计算的残差,雅克比值给EFResidual, 更新残差的状态(好坏)
 void PointFrameResidual::applyRes(bool copyJacobians)
 {
 	if(copyJacobians)

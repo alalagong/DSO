@@ -598,7 +598,7 @@ void FullSystem::activatePointsMT()
 			// delete points that have never been traced successfully, or that are outlier on the last trace.
 			if(!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER)
 			{
-//				immature_invalid_deleted++;
+				//	immature_invalid_deleted++;
 				// remove point.
 				delete ph;
 				host->immaturePoints[i]=0; // 指针赋零
@@ -623,11 +623,11 @@ void FullSystem::activatePointsMT()
 				// if point will be out afterwards, delete it instead.
 				if(ph->host->flaggedForMarginalization || ph->lastTraceStatus == IPS_OOB)
 				{
-//					immature_notReady_deleted++;
+					// immature_notReady_deleted++;
 					delete ph;
 					host->immaturePoints[i]=0;
 				}
-//				immature_notReady_skipped++;
+				// immature_notReady_skipped++;
 				continue;
 			}
 
@@ -657,8 +657,8 @@ void FullSystem::activatePointsMT()
 	}
 
 
-//	printf("ACTIVATE: %d. (del %d, notReady %d, marg %d, good %d, marg-skip %d)\n",
-//			(int)toOptimize.size(), immature_deleted, immature_notReady, immature_needMarg, immature_want, immature_margskip);
+		//	printf("ACTIVATE: %d. (del %d, notReady %d, marg %d, good %d, marg-skip %d)\n",
+		//			(int)toOptimize.size(), immature_deleted, immature_notReady, immature_needMarg, immature_want, immature_margskip);
 //[ ***step 3*** ] 优化上一步挑出来的未成熟点, 进行逆深度优化, 并得到pointhessian
 	std::vector<PointHessian*> optimized; optimized.resize(toOptimize.size());
 
@@ -723,6 +723,7 @@ void FullSystem::activatePointsOldFirst()
 	assert(false);
 }
 
+//@ 
 void FullSystem::flagPointsForRemoval()
 {
 	assert(EFIndicesValid);
@@ -731,7 +732,7 @@ void FullSystem::flagPointsForRemoval()
 	std::vector<FrameHessian*> fhsToMargPoints;
 
 	//if(setting_margPointVisWindow>0)
-	{
+	{	//bug i 为啥还要大于关键帧数
 		for(int i=((int)frameHessians.size())-1;i>=0 && i >= ((int)frameHessians.size());i--)
 			if(!frameHessians[i]->flaggedForMarginalization) fhsToKeepPoints.push_back(frameHessians[i]);
 
@@ -1136,7 +1137,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 
-
+//[ ***step 7*** ] 对滑窗内的关键帧进行优化(说的轻松, 里面好多问题)
 	// =========================== OPTIMIZE ALL =========================
 
 	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;  // 这两个不是一个值么???
@@ -1147,6 +1148,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 	// =========================== Figure Out if INITIALIZATION FAILED =========================
+	//* 所有的关键帧数小于4，认为还是初始化，此时残差太大认为初始化失败
 	if(allKeyFramesHistory.size() <= 4)
 	{
 		if(allKeyFramesHistory.size()==2 && rmse > 20*benchmark_initializerSlackFactor)
@@ -1168,11 +1170,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 
-    if(isLost) return;
+    if(isLost) return;  // 优化后的能量函数太大, 认为是跟丢了
 
 
 
-
+//[ ***step 8*** ] 去除外点, 把最新帧设置为参考帧
+//TODO 是否可以更加严格一些
 	// =========================== REMOVE OUTLIER =========================
 	removeOutliers();
 
@@ -1181,7 +1184,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 	{
 		boost::unique_lock<boost::mutex> crlock(coarseTrackerSwapMutex);
-		coarseTracker_forNewKF->makeK(&Hcalib);
+		coarseTracker_forNewKF->makeK(&Hcalib);  // 更新了内参, 因此重新make
 		coarseTracker_forNewKF->setCoarseTrackingRef(frameHessians);
 
 
@@ -1226,7 +1229,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 	// =========================== Marginalize Frames =========================
-
+//TODO HM在哪赋的值
 	for(unsigned int i=0;i<frameHessians.size();i++)
 		if(frameHessians[i]->flaggedForMarginalization)
 			{marginalizeFrame(frameHessians[i]); i=0;}
@@ -1357,7 +1360,6 @@ void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 
 }
 
-//TODO 需要好好理解这个设置的是啥
 //* 计算frameHessian的预计算值, 和状态的delta值
 //@ 设置关键帧之间的关系
 void FullSystem::setPrecalcValues()

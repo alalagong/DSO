@@ -154,12 +154,14 @@ struct FrameHessian
 	// variable info.
 	SE3 worldToCam_evalPT;		//!< 在估计的相机位姿
 	// [0-5: 位姿左乘小量. 6-7: a,b 光度仿射系数]
+	//* 这三个是与线性化点的增量, 而光度参数不是增量, state就是值
 	Vec10 state_zero;   		//!< 固定的线性化点的状态增量, 为了计算进行缩放
 	Vec10 state_scaled;			//!< 乘上比例系数的状态增量, 这个是真正求的值!!!
 	Vec10 state;				//!< 计算的状态增量
-	Vec10 step;					//!< 
-	Vec10 step_backup;			//!<
-	Vec10 state_backup;			//!<
+	//* step是与上一次优化结果的状态增量, [8 ,9]直接就设置为0了
+	Vec10 step;					//!< 求解正规方程得到的增量
+	Vec10 step_backup;			//!< 上一次的增量备份
+	Vec10 state_backup;			//!< 上一次状态的备份
 
 	//内联提高效率, 返回上面的值
     EIGEN_STRONG_INLINE const SE3 &get_worldToCam_evalPT() const {return worldToCam_evalPT;}
@@ -186,7 +188,6 @@ struct FrameHessian
 	//* 设置增量, 同时复制state和state_scale
 	inline void setState(const Vec10 &state)
 	{
-
 		this->state = state;
 		state_scaled.segment<3>(0) = SCALE_XI_TRANS * state.segment<3>(0);
 		state_scaled.segment<3>(3) = SCALE_XI_ROT * state.segment<3>(3);
@@ -269,7 +270,7 @@ struct FrameHessian
 
     void makeImages(float* color, CalibHessian* HCalib);
 	
-	//* 获得先验， 怎么感觉除了第一帧没什么用
+	//* 获得先验信息矩阵， 怎么感觉除了第一帧没什么用
 	inline Vec10 getPrior()
 	{
 		Vec10 p =  Vec10::Zero();
@@ -296,7 +297,7 @@ struct FrameHessian
 			else
 				p[7] = setting_affineOptModeB;
 		}
-		//? 8,9是干嘛的呢???
+		//? 8,9是干嘛的呢???  没用....
 		p[8] = setting_initialAffAPrior;
 		p[9] = setting_initialAffBPrior;
 		return p;
@@ -321,9 +322,9 @@ struct CalibHessian
 	VecCf value_scaledf;			//!< float型的内参
 	VecCf value_scaledi;			//!< 逆, 应该是求导用为, 1/fx, 1/fy, -cx/fx, -cy/fy
 	VecC value;						//!< 没乘scale的
-	VecC step;						//!< 
-	VecC step_backup;				//!< 
-	VecC value_backup;				//!< 
+	VecC step;						//!< 迭代中的增量
+	VecC step_backup;				//!< 上一次增量备份
+	VecC value_backup;				//!< 上一次值的备份
 	VecC value_minus_value_zero;	//!< 减去线性化点
 
     inline ~CalibHessian() {instanceCounter--;}
@@ -441,13 +442,13 @@ struct PointHessian
 	float idepth_zero_scaled;			//!< FEJ使用, 点在host上x=0初始逆深度
 	float idepth_zero;					//!< 缩放了scale倍的固定线性化点逆深度
 	float idepth;						//!< 缩放scale倍的逆深度
-	float step;
-	float step_backup;
-	float idepth_backup;
+	float step;							//!< 迭代优化每一步增量
+	float step_backup;					//!< 迭代优化上一步增量的备份
+	float idepth_backup;				//!< 上一次的逆深度值
 
-	float nullspaces_scale;
+	float nullspaces_scale;				//!< 零空间 ?
 	float idepth_hessian;				//!< 对应的hessian矩阵值
-	float maxRelBaseline;				//!< 
+	float maxRelBaseline;				//!< 衡量该点的最大基线长度
 	int numGoodResiduals;
 	//? OOB: 应该是由于被边缘化帧上, 同时被最近帧看到的, 所以丢弃观测? OR out of border???
 	enum PtStatus {ACTIVE=0, INACTIVE, OUTLIER, OOB, MARGINALIZED};

@@ -85,7 +85,7 @@ public:
 	RawResidualJacobian* J;			//!< 用来计算jacob, res值
 
 	VecNRf res_toZeroF;				//!< 更新delta后的线性残差
-	Vec8f JpJdF;					//!< 点对逆深度求导
+	Vec8f JpJdF;					//!< 逆深度Jaco和位姿+光度Jaco的Hessian
 
 
 	// status.
@@ -114,8 +114,8 @@ public:
 
 
 
-	float priorF;		//!< 逆深度先验信息
-	float deltaF;		//!< 当前逆深度和线性化处的差
+	float priorF;		//!< 逆深度先验信息矩阵
+	float deltaF;		//!< 当前逆深度和线性化处的差, 没有使用FEJ, 就是0
 
 
 	// constant info (never changes in-between).
@@ -125,17 +125,17 @@ public:
 	// contains all residuals.
 	std::vector<EFResidual*> residualsAll;	//!< 该点的所有残差
 
-	float bdSumF;
-	float HdiF;				//!< 
-	float Hdd_accLF;		//!< 逆深度的hessian
-	VecCf Hcd_accLF;		//!< 逆深度和内参的hessian
-	float bd_accLF;			//!< J逆深度*残差
-	float Hdd_accAF;
-	VecCf Hcd_accAF;
-	float bd_accAF;
+	float bdSumF;			//!< 当前残差 + 边缘化先验残差
+	float HdiF;				//!< 逆深度hessian的逆, 协方差
+	float Hdd_accLF;		//!< 边缘化, 逆深度的hessian
+	VecCf Hcd_accLF;		//!< 边缘化, 逆深度和内参的hessian
+	float bd_accLF;			//!< 边缘化, J逆深度*残差
+	float Hdd_accAF;		//!< 正常逆深度的hessian
+	VecCf Hcd_accAF;		//!< 正常逆深度和内参的hessian
+	float bd_accAF;			//!< 正常 J逆深度*残差
 
 
-	EFPointStatus stateFlag;
+	EFPointStatus stateFlag; //!< 点的状态
 };
 
 
@@ -146,15 +146,15 @@ public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
 	EFFrame(FrameHessian* d) : data(d)
 	{
-		takeData();
+		takeData();  
 	}
 	void takeData();
 
 	//! 位姿 0-5, 光度ab 6-7
 	//TODO 和fh的state有啥区别??
 	Vec8 prior;					//!<  prior hessian (diagonal)
-	Vec8 delta_prior;			//!<    // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
-	Vec8 delta;					//!<   // state - state_zero.
+	Vec8 delta_prior;			//!< 相对于先验的增量   // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
+	Vec8 delta;					//!< 相对于线性化点位姿, 光度的增量  // state - state_zero.
 
 
 

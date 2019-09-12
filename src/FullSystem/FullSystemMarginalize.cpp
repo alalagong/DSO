@@ -139,21 +139,21 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 			}
 		}
 
-//		printf("MARGINALIZE frame %d, as it is the closest (score %.2f)!\n",
-//				toMarginalize->frameID, smallestScore);
+		// printf("MARGINALIZE frame %d, as it is the closest (score %.2f)!\n",
+		//		toMarginalize->frameID, smallestScore);
 		toMarginalize->flaggedForMarginalization = true;
 		flagged++;
 	}
 
-//	printf("FRAMES LEFT: ");
-//	for(FrameHessian* fh : frameHessians)
-//		printf("%d ", fh->frameID);
-//	printf("\n");
+	//	printf("FRAMES LEFT: ");
+	//	for(FrameHessian* fh : frameHessians)
+	//		printf("%d ", fh->frameID);
+	//	printf("\n");
 }
 
 
 
-
+//@
 void FullSystem::marginalizeFrame(FrameHessian* frame)
 {
 	// marginalize or remove all this frames points.

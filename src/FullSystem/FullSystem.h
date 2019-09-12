@@ -194,12 +194,12 @@ private:
 	void removeOutliers();
 
 
-	// set precalc values.
-	void setPrecalcValues();
+	
+	void setPrecalcValues();   // set precalc values.
 
 
-	// solce. eventually migrate to ef.
-	void solveSystem(int iteration, double lambda);
+
+	void solveSystem(int iteration, double lambda);  	// solce. eventually migrate to ef.
 	Vec3 linearizeAll(bool fixLinearization);
 	bool doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,float stepfacA,float stepfacD);
 	void backupState(bool backupLastStep);

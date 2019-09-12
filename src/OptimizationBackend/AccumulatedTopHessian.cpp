@@ -52,16 +52,16 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 	for(EFResidual* r : p->residualsAll) // 对该点所有残差遍历一遍
 	{
-		//TODO 为什么会有这样差别
-		if(mode==0) // 有光度标定结果
+		//* 这个和运行的mode不一样, 又混了.....
+		if(mode==0) // 只计算新加入的残差
 		{
 			if(r->isLinearized || !r->isActive()) continue;
 		}
-		if(mode==1)	// 无光度标定, 进行估计
+		if(mode==1)	// 计算旧的残差, 之前计算过得
 		{
 			if(!r->isLinearized || !r->isActive()) continue;
 		}
-		if(mode==2) // 光度矫正后的图像
+		if(mode==2) // 边缘化计算的情况
 		{
 			if(!r->isActive()) continue;
 			assert(r->isLinearized);
@@ -78,11 +78,11 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 		VecNRf resApprox;
 		if(mode==0)
 			resApprox = rJ->resF;
-		if(mode==2) //? 为什么减去
+		if(mode==2) // 边缘化时使用的
 			resApprox = r->res_toZeroF;
 		if(mode==1)
 		{
-			//? 这不和mode2一样了
+			//* 因为计算的是旧的, 由于更新需要重新计算
 			// compute Jp*delta
 			__m128 Jp_delta_x = _mm_set1_ps(rJ->Jpdxi[0].dot(dp.head<6>())+rJ->Jpdc[0].dot(dc)+rJ->Jpdd[0]*dd);
 			__m128 Jp_delta_y = _mm_set1_ps(rJ->Jpdxi[1].dot(dp.head<6>())+rJ->Jpdc[1].dot(dc)+rJ->Jpdd[1]*dd);
@@ -91,7 +91,8 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 			for(int i=0;i<patternNum;i+=4)
 			{
-				// PATTERN: rtz = resF - [JI*Jp Ja]*delta.
+				//! PATTERN: rtz = res_toZeroF - [JI*Jp Ja]*delta.
+				//* 线性更新b值, 边缘化量, 每次在res_toZeroF上减
 				__m128 rtz = _mm_load_ps(((float*)&r->res_toZeroF)+i);
 				rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx))+i),Jp_delta_x));
 				rtz = _mm_add_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx+1))+i),Jp_delta_y));
@@ -153,7 +154,7 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 		p->bd_accLF = bd_acc;
 		p->Hcd_accLF = Hcd_acc;
 	}
-	if(mode==2)
+	if(mode==2) // 边缘化掉, 设为0
 	{
 		p->Hcd_accAF.setZero();
 		p->Hdd_accAF = 0;
@@ -172,7 +173,7 @@ template void AccumulatedTopHessianSSE::addPoint<2>(EFPoint* p, EnergyFunctional
 
 
 
-
+//@ 对某一个线程进行的 H 和 b 计算, 或者是没有使用多线程
 void AccumulatedTopHessianSSE::stitchDouble(MatXX &H, VecX &b, EnergyFunctional const * const EF, bool usePrior, bool useDelta, int tid)
 {
 	H = MatXX::Zero(nframes[tid]*8+CPARS, nframes[tid]*8+CPARS);
@@ -242,7 +243,7 @@ void AccumulatedTopHessianSSE::stitchDouble(MatXX &H, VecX &b, EnergyFunctional 
 	}
 }
 
-//@ 
+//@ 构造Hessian矩阵, b=Jres矩阵
 void AccumulatedTopHessianSSE::stitchDoubleInternal(
 		MatXX* H, VecX* b, EnergyFunctional const * const EF, bool usePrior,
 		int min, int max, Vec10* stats, int tid)

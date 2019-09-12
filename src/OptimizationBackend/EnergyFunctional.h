@@ -98,13 +98,14 @@ public:
 	std::vector<EFFrame*> frames;  		//!< 能量函数中的帧
 	int nPoints, nFrames, nResiduals;	//!< EFPoint的数目, EFframe关键帧数, 残差数
 
-	MatXX HM;					//!< 优化的Hessian矩阵
-	VecX bM;					//!< 优化的Jr项
+	MatXX HM;					//!< 优化的Hessian矩阵, 边缘化掉逆深度
+	VecX bM;					//!< 优化的Jr项, 边缘化掉逆深度
 
-	int resInA, resInL, resInM;
+	int resInA, resInL, resInM; 	//!< 分别是在计算A, L, 边缘化H和b中残差的数量
 	MatXX lastHS;
 	VecX lastbS;
 	VecX lastX;
+	
 	std::vector<VecX> lastNullspaces_forLogging;
 	std::vector<VecX> lastNullspaces_pose;
 	std::vector<VecX> lastNullspaces_scale;

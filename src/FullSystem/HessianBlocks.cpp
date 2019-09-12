@@ -71,7 +71,7 @@ void PointHessian::release()
 }
 
 //* 设置固定线性化点位置的状态
-//? 后面求nullspaces地方没看懂, 回头再看<2019.04.07>
+//TODO 后面求nullspaces地方没看懂, 回头再看<2019.04.07>
 void FrameHessian::setStateZero(const Vec10 &state_zero)
 {
 	assert(state_zero.head<6>().squaredNorm() < 1e-20);
@@ -194,6 +194,7 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 	}
 }
 
+//@ 计算优化前和优化后的相对位姿, 相对光度变化, 及中间变量
 void FrameFramePrecalc::set(FrameHessian* host, FrameHessian* target, CalibHessian* HCalib )
 {
 	this->host = host;    // 这个是赋值, 计数会增加, 不是拷贝

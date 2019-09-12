@@ -133,7 +133,7 @@ void CoarseTracker::makeK(CalibHessian* HCalib)
 }
 
 
-
+//@ 
 void CoarseTracker::makeCoarseDepthL0(std::vector<FrameHessian*> frameHessians)
 {
 	// make coarse tracking templates for latstRef.
@@ -522,7 +522,7 @@ Vec6 CoarseTracker::calcRes(int lvl, const SE3 &refToNew, AffLight aff_g2l, floa
 
 
 
-//@ 
+//@ 把优化完的最新帧设为参考帧
 void CoarseTracker::setCoarseTrackingRef(
 		std::vector<FrameHessian*> frameHessians)
 {

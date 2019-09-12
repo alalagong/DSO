@@ -64,11 +64,12 @@ public:
 
 	inline void setZero(int n, int min=0, int max=1, Vec10* stats=0, int tid=0)
 	{
-		if(n != nframes[tid])
+		if(n != nframes[tid])  // 如果帧数有变化
 		{
 			if(accE[tid] != 0) delete[] accE[tid];
 			if(accEB[tid] != 0) delete[] accEB[tid];
 			if(accD[tid] != 0) delete[] accD[tid];
+			// 这三数组
 			accE[tid] = new AccumulatorXX<8,CPARS>[n*n];
 			accEB[tid] = new AccumulatorX<8>[n*n];
 			accD[tid] = new AccumulatorXX<8,8>[n*n*n];
@@ -89,7 +90,7 @@ public:
 	void stitchDouble(MatXX &H_sc, VecX &b_sc, EnergyFunctional const * const EF, int tid=0);
 	void addPoint(EFPoint* p, bool shiftPriorToZero, int tid=0);
 
-
+	//@ 多线程得到Schur complement
 	void stitchDoubleMT(IndexThreadReduce<Vec10>* red, MatXX &H, VecX &b, EnergyFunctional const * const EF, bool MT)
 	{
 		// sum up, splitting by bock in square.
@@ -97,6 +98,7 @@ public:
 		{
 			MatXX Hs[NUM_THREADS];
 			VecX bs[NUM_THREADS];
+			// 分配空间大小
 			for(int i=0;i<NUM_THREADS;i++)
 			{
 				assert(nframes[0] == nframes[i]);
@@ -111,7 +113,7 @@ public:
 			H = Hs[0];
 			b = bs[0];
 
-			for(int i=1;i<NUM_THREADS;i++)
+			for(int i=1;i<NUM_THREADS;i++) 
 			{
 				H.noalias() += Hs[i];
 				b.noalias() += bs[i];
@@ -123,7 +125,8 @@ public:
 			b = VecX::Zero(nframes[0]*8+CPARS);
 			stitchDoubleInternal(&H, &b, EF,0,nframes[0]*nframes[0],0,-1);
 		}
-
+		
+		//* 对称部分
 		// make diagonal by copying over parts.
 		for(int h=0;h<nframes[0];h++)
 		{
@@ -133,11 +136,12 @@ public:
 	}
 
 
-	AccumulatorXX<8,CPARS>* accE[NUM_THREADS];
-	AccumulatorX<8>* accEB[NUM_THREADS];
-	AccumulatorXX<8,8>* accD[NUM_THREADS];
-	AccumulatorXX<CPARS,CPARS> accHcc[NUM_THREADS];
-	AccumulatorX<CPARS> accbc[NUM_THREADS];
+	AccumulatorXX<8,CPARS>* accE[NUM_THREADS];			//!< 位姿和内参关于逆深度的 Schur
+	AccumulatorX<8>* accEB[NUM_THREADS];				//!< 位姿光度关于逆深度的 b*Schur
+	AccumulatorXX<8,8>* accD[NUM_THREADS];				//!< 两位姿光度关于逆深度的 Schur
+
+	AccumulatorXX<CPARS,CPARS> accHcc[NUM_THREADS];		//!< 内参关于逆深度的 Schur
+	AccumulatorX<CPARS> accbc[NUM_THREADS];				//!< 内参关于逆深度的 b*Schur
 	int nframes[NUM_THREADS];
 
 
