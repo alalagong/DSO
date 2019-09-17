@@ -92,8 +92,8 @@ public:
 	bool isLinearized;				//!< 计算完成res_toZeroF
 
 	// if residual is not OOB & not OUTLIER & should be used during accumulations
-	bool isActiveAndIsGoodNEW;
-	inline const bool &isActive() const {return isActiveAndIsGoodNEW;}
+	bool isActiveAndIsGoodNEW;		//!< 激活的还可以参与优化
+	inline const bool &isActive() const {return isActiveAndIsGoodNEW;}  //!< 是不是激活的取决于残差状态
 };
 
 
@@ -114,7 +114,7 @@ public:
 
 
 
-	float priorF;		//!< 逆深度先验信息矩阵
+	float priorF;		//!< 逆深度先验信息矩阵, 初始化之后的有
 	float deltaF;		//!< 当前逆深度和线性化处的差, 没有使用FEJ, 就是0
 
 
@@ -152,7 +152,7 @@ public:
 
 	//! 位姿 0-5, 光度ab 6-7
 	//TODO 和fh的state有啥区别??
-	Vec8 prior;					//!<  prior hessian (diagonal)
+	Vec8 prior;					//!< 位姿只有第一帧有先验 prior hessian (diagonal)
 	Vec8 delta_prior;			//!< 相对于先验的增量   // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
 	Vec8 delta;					//!< 相对于线性化点位姿, 光度的增量  // state - state_zero.
 

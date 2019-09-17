@@ -63,17 +63,18 @@ PointHessian::PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hc
 
 }
 
-//* 释放residual
+//@ 释放residual
 void PointHessian::release()
 {
 	for(unsigned int i=0;i<residuals.size();i++) delete residuals[i];
 	residuals.clear();
 }
 
-//* 设置固定线性化点位置的状态
+//@ 设置固定线性化点位置的状态
 //TODO 后面求nullspaces地方没看懂, 回头再看<2019.04.07>
 void FrameHessian::setStateZero(const Vec10 &state_zero)
 {
+	//! 前六维位姿必须是0
 	assert(state_zero.head<6>().squaredNorm() < 1e-20);
 
 	this->state_zero = state_zero;

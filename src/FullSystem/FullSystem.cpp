@@ -723,7 +723,7 @@ void FullSystem::activatePointsOldFirst()
 	assert(false);
 }
 
-//@ 
+//@ 标记要移除点的状态, 边缘化or丢掉
 void FullSystem::flagPointsForRemoval()
 {
 	assert(EFIndicesValid);
@@ -732,7 +732,7 @@ void FullSystem::flagPointsForRemoval()
 	std::vector<FrameHessian*> fhsToMargPoints;
 
 	//if(setting_margPointVisWindow>0)
-	{	//bug i 为啥还要大于关键帧数
+	{	//bug 又是不用的一条语句
 		for(int i=((int)frameHessians.size())-1;i>=0 && i >= ((int)frameHessians.size());i--)
 			if(!frameHessians[i]->flaggedForMarginalization) fhsToKeepPoints.push_back(frameHessians[i]);
 
@@ -753,6 +753,7 @@ void FullSystem::flagPointsForRemoval()
 			PointHessian* ph = host->pointHessians[i];
 			if(ph==0) continue;
 
+			//* 丢掉相机后面, 没有残差的点
 			if(ph->idepth_scaled < 0 || ph->residuals.size()==0)
 			{
 				host->pointHessiansOut.push_back(ph);
@@ -760,9 +761,11 @@ void FullSystem::flagPointsForRemoval()
 				host->pointHessians[i]=0;
 				flag_nores++;
 			}
+			//* 把边缘化的帧上的点, 以及受影响较大的点标记为边缘化or删除
 			else if(ph->isOOB(fhsToKeepPoints, fhsToMargPoints) || host->flaggedForMarginalization)
 			{
 				flag_oob++;
+				//* 如果是一个内点, 则把残差在当前状态线性化, 并计算残差
 				if(ph->isInlierNew())
 				{
 					flag_in++;
@@ -773,12 +776,14 @@ void FullSystem::flagPointsForRemoval()
 						r->linearize(&Hcalib);
 						r->efResidual->isLinearized = false;
 						r->applyRes(true);
+						// 如果是激活(可参与优化)的残差, 则给fix住, 计算res_toZeroF
 						if(r->efResidual->isActive())
 						{
 							r->efResidual->fixLinearizationF(ef);
 							ngoodRes++;
 						}
 					}
+					//* 如果逆深度的协方差很大直接扔掉, 小的边缘化掉
                     if(ph->idepth_hessian > setting_minIdepthH_marg)
 					{
 						flag_inin++;
@@ -793,6 +798,7 @@ void FullSystem::flagPointsForRemoval()
 
 
 				}
+				//* 不是内点直接扔掉
 				else
 				{
 					host->pointHessiansOut.push_back(ph);
@@ -802,11 +808,11 @@ void FullSystem::flagPointsForRemoval()
 					//printf("drop point in frame %d (%d goodRes, %d activeRes)\n", ph->host->idx, ph->numGoodResiduals, (int)ph->residuals.size());
 				}
 
-				host->pointHessians[i]=0;
+				host->pointHessians[i]=0; // 把点给删除
 			}
 		}
 
-
+		//* 删除边缘化或者删除的点
 		for(int i=0;i<(int)host->pointHessians.size();i++)
 		{
 			if(host->pointHessians[i]==0)
@@ -1075,7 +1081,7 @@ void FullSystem::makeNonKeyFrame( FrameHessian* fh)
 	delete fh;
 }
 
-//@ 
+//@ 生成关键帧, 优化, 激活点, 提取点, 边缘化关键帧
 void FullSystem::makeKeyFrame( FrameHessian* fh)
 {
 
@@ -1200,19 +1206,21 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 
-
+//[ ***step 9*** ] 标记删除和边缘化的点, 并删除&边缘化
 	// =========================== (Activate-)Marginalize Points =========================
 	flagPointsForRemoval();
-	ef->dropPointsF();
+	ef->dropPointsF();  // 扔掉drop的点
+	// 每次设置线性化点都会更新零空间
 	getNullspaces(
 			ef->lastNullspaces_pose,
 			ef->lastNullspaces_scale,
 			ef->lastNullspaces_affA,
 			ef->lastNullspaces_affB);
+	// 边缘化掉点, 加在HM, bM上
 	ef->marginalizePointsF();
 
 
-
+//[ ***step 10*** ] 生成新的点
 	// =========================== add new Immature points & new residuals =========================
 	makeNewTraces(fh, 0);
 
@@ -1229,7 +1237,8 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 
 	// =========================== Marginalize Frames =========================
-//TODO HM在哪赋的值
+//[ ***step 11*** ] 边缘化掉关键帧
+	//* 边缘化一帧要删除or边缘化上面所有点
 	for(unsigned int i=0;i<frameHessians.size();i++)
 		if(frameHessians[i]->flaggedForMarginalization)
 			{marginalizeFrame(frameHessians[i]); i=0;}
@@ -1333,9 +1342,10 @@ void FullSystem::initializeFromInitializer(FrameHessian* newFrame)
 	printf("INITIALIZE FROM INITIALIZER (%d pts)!\n", (int)firstFrame->pointHessians.size());
 }
 
+//@ 提取新的像素点用来跟踪
 void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 {
-	pixelSelector->allowFast = true;
+	pixelSelector->allowFast = true;  //bug 没卵用
 	//int numPointsTotal = makePixelStatus(newFrame->dI, selectionMap, wG[0], hG[0], setting_desiredDensity);
 	int numPointsTotal = pixelSelector->makeMaps(newFrame, selectionMap,setting_desiredImmatureDensity);
 
@@ -1352,7 +1362,7 @@ void FullSystem::makeNewTraces(FrameHessian* newFrame, float* gtDepth)
 		if(selectionMap[i]==0) continue;
 
 		ImmaturePoint* impt = new ImmaturePoint(x,y,newFrame, selectionMap[i], &Hcalib);
-		if(!std::isfinite(impt->energyTH)) delete impt;
+		if(!std::isfinite(impt->energyTH)) delete impt;  // 投影得到的不是有穷数
 		else newFrame->immaturePoints.push_back(impt);
 
 	}

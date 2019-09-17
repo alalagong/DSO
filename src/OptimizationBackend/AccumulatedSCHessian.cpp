@@ -46,6 +46,7 @@ void AccumulatedSCHessianSSE::addPoint(EFPoint* p, bool shiftPriorToZero, int ti
 	//* hessian + 边缘化得到hessian + 先验hessian
 	//TODO 边缘化的先验和正常的先验的不同
 	float H = p->Hdd_accAF+p->Hdd_accLF+p->priorF;
+
 	if(H < 1e-10) H = 1e-10;
 
 	p->data->idepth_hessian=H;
@@ -53,10 +54,12 @@ void AccumulatedSCHessianSSE::addPoint(EFPoint* p, bool shiftPriorToZero, int ti
 	p->HdiF = 1.0 / H;
 	//* 逆深度残差
 	p->bdSumF = p->bd_accAF + p->bd_accLF;
+
 	if(shiftPriorToZero) p->bdSumF += p->priorF*p->deltaF;
 	
 	//* 逆深度和内参的交叉项
 	VecCf Hcd = p->Hcd_accAF + p->Hcd_accLF;
+
 
 	//* schur complement
 	//! Hcd * Hdd_inv * Hcd^T

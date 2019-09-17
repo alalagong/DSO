@@ -187,7 +187,7 @@ float freeDebugParam5 = 1;
 
 bool disableReconfigure=false;
 bool debugSaveImages = false;
-bool multiThreading = true;
+bool multiThreading = false;
 bool disableAllDisplay = false;
 bool setting_onlyLogKFPoses = true;
 bool setting_logStuff = true;

@@ -210,7 +210,8 @@ void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 		red->reduce(boost::bind(&AccumulatedTopHessianSSE::setZero, accSSE_top_A, nFrames,  _1, _2, _3, _4), 0, 0, 0);
 		red->reduce(boost::bind(&AccumulatedTopHessianSSE::addPointsInternal<0>,
 				accSSE_top_A, &allPoints, this,  _1, _2, _3, _4), 0, allPoints.size(), 50);
-		accSSE_top_A->stitchDoubleMT(red,H,b,this,false,true);
+		// accSSE_top_A->stitchDoubleMT(red,H,b,this,false,true);
+		accSSE_top_A->stitchDoubleMT(red,H,b,this,true,true);
 		resInA = accSSE_top_A->nres[0];
 	}
 	else
@@ -219,7 +220,8 @@ void EnergyFunctional::accumulateAF_MT(MatXX &H, VecX &b, bool MT)
 		for(EFFrame* f : frames)
 			for(EFPoint* p : f->points)
 				accSSE_top_A->addPoint<0>(p,this); //! mode 0 增加EF点
-		accSSE_top_A->stitchDoubleMT(red,H,b,this,false,false); // 不加先验, 得到H, b
+		// accSSE_top_A->stitchDoubleMT(red,H,b,this,false,false); // 不加先验, 得到H, b
+		accSSE_top_A->stitchDoubleMT(red,H,b,this,true,false); // 加先验, 得到H, b
 		resInA = accSSE_top_A->nres[0];  // 所有残差计数
 	}
 }
@@ -318,7 +320,8 @@ void EnergyFunctional::resubstituteFPt(
 			continue;
 		}
 		float b = p->bdSumF;
-		b -= xc.dot(p->Hcd_accAF + p->Hcd_accLF); //* 减去逆深度和内参
+		// b -= xc.dot(p->Hcd_accAF + p->Hcd_accLF); //* 减去逆深度和内参
+		b -= xc.dot(p->Hcd_accAF); //* 减去逆深度和内参
 
 		for(EFResidual* r : p->residualsAll)
 		{
@@ -546,6 +549,7 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 
 
 //[ ***step 1*** ] 把边缘化的帧挪到最右边, 最下边
+	//* HM bM就是边缘化点得到的
 	if((int)fh->idx != (int)frames.size()-1)
 	{
 		int io = fh->idx*8+CPARS;	// index of frame to move to end
@@ -569,7 +573,8 @@ void EnergyFunctional::marginalizeFrame(EFFrame* fh)
 		HM.bottomRows(8) = HtmpRow;
 	}
 
-//[ ***step 2*** ] 加上先验, 为什么 ???
+//[ ***step 2*** ] 加上先验
+	//* 如果是初始化得到的帧有先验, 边缘化时需要加上. 光度也有先验
 	// marginalize. First add prior here, instead of to active.
     HM.bottomRightCorner<8,8>().diagonal() += fh->prior;
     bM.tail<8>() += fh->prior.cwiseProduct(fh->delta_prior);
@@ -831,8 +836,12 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	accumulateAF_MT(HA_top, bA_top,multiThreading);
 
 	//* 边缘化fix的残差, 有边缘化对的, 使用的res_toZeroF减去线性化部分, 加上先验, 没有逆深度的部分
+	//bug: 这里根本就没有点参与了, 只有先验信息, 因为边缘化的和删除的点都不在了
+	//! 这里唯一的作用就是 把 p相关的置零
 	accumulateLF_MT(HL_top, bL_top,multiThreading);  // 计算的是之前计算过得
-
+		// p->Hdd_accLF = 0;
+		// p->bd_accLF = 0;
+		// p->Hcd_accLF = ;
 
 	//* 关于逆深度的Schur部分
 	accumulateSCF_MT(H_sc, b_sc,multiThreading);
@@ -841,10 +850,25 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	//* 由于固定线性化点, 每次迭代更新残差
 	bM_top = (bM+ HM * getStitchedDeltaF());
 
+	// printf("HA_top: \n");
+	// for(int i = 0; i < HA_top.rows(); i++)
+	// {	
+	// 	// for(int j = 0; j < HA_top.cols(); j++)
+	// 	{
+	// 		printf("  %f", HA_top(i,i));
+	// 	}
+	// 	// printf("; \n");
+	// }
 
-
-
-
+	// printf("HL_top: \n");
+	// for(int i = 0; i < HL_top.rows(); i++)
+	// {
+	// 	// for(int j = 0; j < HL_top.cols(); j++)
+	// 	{
+	// 		printf("  %f", HL_top(i,i));
+	// 	}
+	// 	// printf("; \n");
+	// }	
 
 
 	MatXX HFinal_top;
@@ -859,8 +883,10 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 
 		// 计算Schur之后的
-		MatXX HT_act =  HL_top + HA_top - H_sc;
-		VecX bT_act =   bL_top + bA_top - b_sc;
+		// MatXX HT_act =  HL_top + HA_top - H_sc;
+		MatXX HT_act =  HA_top - H_sc;
+		// VecX bT_act =   bL_top + bA_top - b_sc;
+		VecX bT_act =   bA_top - b_sc;
 
 		//! 包含第一帧则不减去零空间
 		//! 不包含第一帧, 因为要固定第一帧, 和第一帧统一, 减去零空间, 防止在零空间乱飘
@@ -887,8 +913,10 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	{
 
 
-		HFinal_top = HL_top + HM + HA_top;
-		bFinal_top = bL_top + bM_top + bA_top - b_sc;
+		// HFinal_top = HL_top + HM + HA_top;
+		HFinal_top = HM + HA_top;
+		// bFinal_top = bL_top + bM_top + bA_top - b_sc;
+		bFinal_top = bM_top + bA_top - b_sc;
 
 		lastHS = HFinal_top - H_sc;
 		lastbS = bFinal_top;

@@ -57,7 +57,7 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 		{
 			if(r->isLinearized || !r->isActive()) continue;
 		}
-		if(mode==1)	// 计算旧的残差, 之前计算过得
+		if(mode==1)	//bug: 这个条件就一直满足 计算旧的残差, 之前计算过得
 		{
 			if(!r->isLinearized || !r->isActive()) continue;
 		}
@@ -66,7 +66,10 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 			if(!r->isActive()) continue;
 			assert(r->isLinearized);
 		}
-
+		if(mode == 1)
+		{
+			printf("yeah I'm IN !");
+		}
 
 		RawResidualJacobian* rJ = r->J; // 导数
 		//* ID 来控制不同帧之间的变量, 区分出相同两帧 但是host target角色互换的
@@ -147,7 +150,6 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 		p->bd_accAF = bd_acc;
 		p->Hcd_accAF = Hcd_acc;
 	}
-	//? L 和 A 代表啥
 	if(mode==1 || mode==2)
 	{
 		p->Hdd_accLF = Hdd_acc;

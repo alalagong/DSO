@@ -450,8 +450,8 @@ struct PointHessian
 	float idepth_hessian;				//!< 对应的hessian矩阵值
 	float maxRelBaseline;				//!< 衡量该点的最大基线长度
 	int numGoodResiduals;
-	//? OOB: 应该是由于被边缘化帧上, 同时被最近帧看到的, 所以丢弃观测? OR out of border???
-	enum PtStatus {ACTIVE=0, INACTIVE, OUTLIER, OOB, MARGINALIZED};
+	
+	enum PtStatus {ACTIVE=0, INACTIVE, OUTLIER, OOB, MARGINALIZED};  // 这些状态都没啥用.....
 	PtStatus status;
 
     inline void setPointStatus(PtStatus s) {status=s;}
@@ -481,7 +481,7 @@ struct PointHessian
 	PointHessian(const ImmaturePoint* const rawPoint, CalibHessian* Hcalib);
     inline ~PointHessian() {assert(efPoint==0); release(); instanceCounter--;}
 
-	//TODO: condition here need to be rethink
+	//@ 判断其它帧上的点是否不值得要了
 	inline bool isOOB(const std::vector<FrameHessian*>& toKeep, const std::vector<FrameHessian*>& toMarg) const
 	{
 
@@ -492,6 +492,7 @@ struct PointHessian
 			for(FrameHessian* k : toMarg)
 				if(r->target == k) visInToMarg++;  // 在要边缘化掉的帧被观测的数量
 		}
+		//[1]: 原本是很好的一个点，但是边缘化一帧后，残差变太少了, 边缘化or丢掉
 		if((int)residuals.size() >= setting_minGoodActiveResForMarg &&  // 残差数大于一定数目
 				numGoodResiduals > setting_minGoodResForMarg+10 &&
 				(int)residuals.size()-visInToMarg < setting_minGoodActiveResForMarg) //剩余残差足够少
@@ -499,10 +500,12 @@ struct PointHessian
 
 
 
-
+		//[2]: 最新一帧的投影在图像外了, 看不见了, 边缘化or丢掉
 		// 或者满足以下条件,
 		if(lastResiduals[0].second == ResState::OOB) return true;   //上一帧是OOB
+		//[3]: 残差比较少, 新加入的, 不边缘化
 		if(residuals.size() < 2) return false;	//观测较少不设置为OOB
+		//[4]: 前两帧投影都是外点, 边缘化or丢掉
 		if(lastResiduals[0].second == ResState::OUTLIER && lastResiduals[1].second == ResState::OUTLIER) return true; //前两帧都是外点
 		return false;
 	}

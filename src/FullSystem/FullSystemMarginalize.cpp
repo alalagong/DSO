@@ -153,18 +153,17 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 
 
 
-//@
+//@ 边缘化一个关键帧, 删除该帧上的残差
 void FullSystem::marginalizeFrame(FrameHessian* frame)
 {
-	// marginalize or remove all this frames points.
-
+	//! marginalize or remove all this frames points.
 	assert((int)frame->pointHessians.size()==0);
 
 
 	ef->marginalizeFrame(frame->efFrame);
 
 	// drop all observations of existing points in that frame.
-
+	//* 删除其它帧在被边缘化帧上的残差
 	for(FrameHessian* fh : frameHessians)
 	{
 		if(fh==frame) continue;
