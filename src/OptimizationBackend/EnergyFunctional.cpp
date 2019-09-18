@@ -336,7 +336,7 @@ void EnergyFunctional::resubstituteFPt(
 }
 
 //@ 也是求能量, 使用HM和bM求的, delta是绝对的
-//TODO MEnerage和LEnerage有啥区别
+
 double EnergyFunctional::calcMEnergyF()
 {
 
@@ -386,7 +386,7 @@ void EnergyFunctional::calcLEnergyPt(int min, int max, Vec10* stats, int tid)
 
 			for(int i=0;i+3<patternNum;i+=4)
 			{
-				// TODO resb_toZeroF里的 delta_x 和现在的 delta_x 一样么
+				
 				//! PATTERN: E = (2*resb_toZeroF + J*delta) * J*delta.
 				//! E = (f(x0)+J*dx)^2 = dx*H*dx + 2*J*dx*f(x0) + f(x0)^2 丢掉常数 f(x0)^2
 				__m128 Jdelta =            _mm_mul_ps(_mm_load_ps(((float*)(rJ->JIdx))+i),Jp_delta_x);

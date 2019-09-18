@@ -147,8 +147,6 @@ void settingsDefault(int preset)
 
 
 
-
-
 void parseArgument(char* arg)
 {
 	int option;

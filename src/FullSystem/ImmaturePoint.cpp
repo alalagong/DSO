@@ -201,7 +201,6 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 	float a = (Vec2f(dx,dy).transpose() * gradH * Vec2f(dx,dy)); 
 	//! (dIx*dy - dIy*dx)^2
 	float b = (Vec2f(dy,-dx).transpose() * gradH * Vec2f(dy,-dx)); // (dx, dy)垂直方向的乘积
-	//TODO 为什么这样算, 这是啥
 	// 计算的是极线方向和梯度方向的夹角大小，90度则a=0, errorInPixel变大；平行时候b=0
 	float errorInPixel = 0.2f + 0.2f * (a+b) / a; // 没有使用LSD的方法, 估计是能有效防止位移小的情况
 

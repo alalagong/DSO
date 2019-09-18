@@ -259,7 +259,7 @@ private:
 	boost::mutex trackMutex;		//!< tracking线程锁
 	std::vector<FrameShell*> allFrameHistory;
 	CoarseInitializer* coarseInitializer;
-	Vec5 lastCoarseRMSE;
+	Vec5 lastCoarseRMSE;			//!< 上一次跟踪的平均chi2
 
 
 	// ================== changed by mapper-thread. protected by mapMutex ===============

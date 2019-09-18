@@ -151,7 +151,6 @@ public:
 	void takeData();
 
 	//! 位姿 0-5, 光度ab 6-7
-	//TODO 和fh的state有啥区别??
 	Vec8 prior;					//!< 位姿只有第一帧有先验 prior hessian (diagonal)
 	Vec8 delta_prior;			//!< 相对于先验的增量   // = state-state_prior (E_prior = (delta_prior)' * diag(prior) * (delta_prior)
 	Vec8 delta;					//!< 相对于线性化点位姿, 光度的增量  // state - state_zero.

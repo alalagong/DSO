@@ -143,7 +143,7 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 
 		nres[tid]++;
 	}
-	//TODO 为啥, mode 如何决定的点的逆深度导数
+
 	if(mode==0)
 	{
 		p->Hdd_accAF = Hdd_acc;
@@ -296,7 +296,6 @@ void AccumulatedTopHessianSSE::stitchDoubleInternal(
 
 	}
 
-	//TODO 好好理解下这个delta_prior, 解决一直以来的问题
 	// only do this on one thread.
 	if(min==0 && usePrior)
 	{

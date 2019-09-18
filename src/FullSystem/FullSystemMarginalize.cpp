@@ -57,7 +57,7 @@ namespace dso
 //@ 对于关键帧的边缘化策略 1. 活跃点只剩下5%的; 2. 和最新关键帧曝光变化大于0.7; 3. 距离最远的关键帧
 void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 {
-	// TODO 怎么会有这种情况呢? 
+	//? 怎么会有这种情况呢? 
 	if(setting_minFrameAge > setting_maxFrames)
 	{
 		for(int i=setting_maxFrames;i<(int)frameHessians.size();i++)
@@ -122,7 +122,7 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 			double distScore = 0;
 			for(FrameFramePrecalc &ffh : fh->targetPrecalc)
 			{
-				// TODO 为啥加一 ??
+				//? 为啥加一   答: 
 				if(ffh.target->frameID > latest->frameID-setting_minFrameAge+1 || ffh.target == ffh.host) continue;
 				distScore += 1/(1e-5+ffh.distanceLL); // 帧间距离
 

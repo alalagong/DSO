@@ -42,7 +42,6 @@ class CalibHessian;
 
 class EFResidual;
 
-//TODO  怎么好多OOB状态, 需要理清楚
 enum ResLocation {ACTIVE=0, LINEARIZED, MARGINALIZED, NONE};
 enum ResState {IN=0, OOB, OUTLIER};  // IN在内部, OOB 点超出图像, OUTLIER有外点 
 

@@ -418,7 +418,6 @@ void FullSystem::printOptRes(const Vec3 &res, double resL, double resM, double r
 }
 
 //@ 对当前的关键帧进行GN优化
-//TODO 需要再理一理, FEJ, 边缘化, 先验的关系
 float FullSystem::optimize(int mnumOptIts)
 {
 
@@ -459,7 +458,6 @@ float FullSystem::optimize(int mnumOptIts)
 	//* 线性化, 参数: [true是进行固定线性化, 并去掉不好的残差] [false不进行固定线性化]
 	Vec3 lastEnergy = linearizeAll(false);  
 	//? 和linearizeAll计算的有啥区别
-	//TODO 想一下, 这个值会变吗???
 	double lastEnergyL = calcLEnergy(); // islinearized的量的能量
 	double lastEnergyM = calcMEnergy(); // HM部分的能量
 
