@@ -145,7 +145,7 @@ private:
 	Mat88f* adTargetF;
 
 
-	VecC cPrior;		//? setting_initialCalibHessian 信息矩阵 
+	VecC cPrior;		//!< setting_initialCalibHessian 信息矩阵 
 	VecCf cDeltaF;									//!< 相机内参增量
 	VecCf cPriorF;	// float型
 

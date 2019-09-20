@@ -242,7 +242,7 @@ bool FullSystem::doStepFromBackup(float stepfacC,float stepfacT,float stepfacR,f
 		for(FrameHessian* fh : frameHessians)
 		{
 			Vec10 step = fh->step;
-			step.head<6>() += 0.5f*(fh->step_backup.head<6>()); //? 为什么加一半
+			step.head<6>() += 0.5f*(fh->step_backup.head<6>()); //? 为什么加一半  答：这种解法很奇怪。。不管了 
 
 			fh->setState(fh->state_backup + step);  // 位姿 光度 update
 			sumA += step[6]*step[6];		// 光度增量平方

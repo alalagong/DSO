@@ -197,7 +197,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	for(int idx=0;idx<patternNum;idx++)
 	{
 		float Ku, Kv;
-		//? 为啥这里使用idepth_scaled, 上面使用的是zero, 其实和上面一样的....同时调用了setIdepth() setIdepthZero()
+		//? 为啥这里使用idepth_scaled, 上面使用的是zero； 答： 其实和上面一样的....同时调用了setIdepth() setIdepthZero()
 		//! 答: 这里是求图像导数, 由于线性误差大, 就不使用FEJ, 所以使用当前的状态
 		if(!projectPoint(point->u+patternP[idx][0], point->v+patternP[idx][1], point->idepth_scaled, PRE_KRKiTll, PRE_KtTll, Ku, Kv))
 			{ state_NewState = ResState::OOB; return state_energy; }

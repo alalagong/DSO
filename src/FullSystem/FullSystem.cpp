@@ -690,8 +690,9 @@ void FullSystem::activatePointsMT()
 		}
 		else if(newpoint == (PointHessian*)((long)(-1)) || ph->lastTraceStatus==IPS_OOB)
 		{
-			delete ph;
+			// bug: 原来的顺序错误
 			ph->host->immaturePoints[ph->idxInImmaturePoints]=0;
+			delete ph;
 		}
 		else
 		{
@@ -1094,7 +1095,6 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 //[ ***step 1*** ] 设置当前估计的fh的位姿, 光度参数
 	// needs to be set by mapping thread
 	{	// 同样取出位姿, 当前的作为最终值
-		//? 这个位姿还会优化么 ???
 		//? 为啥要从shell来设置 ???
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 		assert(fh->shell->trackingRef != 0);

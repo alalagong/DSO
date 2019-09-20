@@ -803,7 +803,20 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 	//! Npi.transpose()是N的伪逆
 	MatXX NNpiT = N*Npi.transpose(); 	// [dim] x [dim].
 	MatXX NNpiTS = 0.5*(NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
+	
+	// printf("******NNpiT************");
+	// for(int i=0; i<NNpiT.rows(); i++)
+	// for(int j=0; j<NNpiT.cols(); j++)
+	// {
+	// 	printf(" %f", NNpiT(i,j));
+	// }
 
+	// printf("******NNpiTS************");
+	// for(int i=0; i<NNpiTS.rows(); i++)
+	// for(int j=0; j<NNpiTS.cols(); j++)
+	// {
+	// 	printf(" %f", NNpiTS(i,j));
+	// }
 
 	//TODO 为什么这么做?
 	//* 把零空间从H和b中减去??? 以免乱飘?
@@ -893,8 +906,6 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		if(!haveFirstFrame)
 			orthogonalize(&bT_act, &HT_act);
 
-		//? 加上之前的???
-		//TODO 看下先验到底在哪计算, L到底是啥
 		HFinal_top = HT_act + HM;
 		bFinal_top = bT_act + bM_top;
 

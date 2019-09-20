@@ -71,7 +71,7 @@ void PointHessian::release()
 }
 
 //@ 设置固定线性化点位置的状态
-//TODO 后面求nullspaces地方没看懂, 回头再看<2019.04.07>
+//TODO 后面求nullspaces地方没看懂, 回头再看<2019.09.18> 数学原理是啥?
 void FrameHessian::setStateZero(const Vec10 &state_zero)
 {
 	//! 前六维位姿必须是0
@@ -81,6 +81,7 @@ void FrameHessian::setStateZero(const Vec10 &state_zero)
 
 	//! 感觉这个nullspaces_pose就是 Adj_T
 	//! Exp(Adj_T*zeta)=T*Exp(zeta)*T^{-1}
+	//TODO 这个是数值求导的方法么???
 	for(int i=0;i<6;i++)
 	{
 		Vec6 eps; eps.setZero(); eps[i] = 1e-3;
@@ -187,7 +188,7 @@ void FrameHessian::makeImages(float* color, CalibHessian* HCalib)
 
 			if(setting_gammaWeightsPixelSelect==1 && HCalib!=0)
 			{
-				// 乘上响应函数, 变换回正常的颜色, 因为光度矫正时 I = G^-1(I) / V(x)
+				//! 乘上响应函数, 变换回正常的颜色, 因为光度矫正时 I = G^-1(I) / V(x)
 				float gw = HCalib->getBGradOnly((float)(dI_l[idx][0])); 
 				dabs_l[idx] *= gw*gw;	// convert to gradient of original color space (before removing response).
 			}

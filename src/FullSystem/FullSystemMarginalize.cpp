@@ -122,7 +122,6 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 			double distScore = 0;
 			for(FrameFramePrecalc &ffh : fh->targetPrecalc)
 			{
-				//? 为啥加一   答: 
 				if(ffh.target->frameID > latest->frameID-setting_minFrameAge+1 || ffh.target == ffh.host) continue;
 				distScore += 1/(1e-5+ffh.distanceLL); // 帧间距离
 

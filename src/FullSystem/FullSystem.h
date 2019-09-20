@@ -257,7 +257,7 @@ private:
 
 	// =================== changed by tracker-thread. protected by trackMutex ============
 	boost::mutex trackMutex;		//!< tracking线程锁
-	std::vector<FrameShell*> allFrameHistory;
+	std::vector<FrameShell*> allFrameHistory;		//!< 所有的历史帧
 	CoarseInitializer* coarseInitializer;
 	Vec5 lastCoarseRMSE;			//!< 上一次跟踪的平均chi2
 
