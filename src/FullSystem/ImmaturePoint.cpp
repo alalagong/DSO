@@ -51,7 +51,7 @@ ImmaturePoint::ImmaturePoint(int u_, int v_, FrameHessian* host_, float type, Ca
 
 		// 梯度矩阵[dx*2, dxdy; dydx, dy^2]
 		gradH += ptc.tail<2>()  * ptc.tail<2>().transpose();
-
+		//! 点的权重 c^2 / ( c^2 + ||grad||^2 )
 		weights[idx] = sqrtf(setting_outlierTHSumComponent / (setting_outlierTHSumComponent + ptc.tail<2>().squaredNorm()));
 	}
 
@@ -396,8 +396,8 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 
 		lastTracePixelInterval=0;
 		lastTraceUV = Vec2f(-1,-1);
-		if(lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)
-			return lastTraceStatus = ImmaturePointStatus::IPS_OOB;
+		if(lastTraceStatus == ImmaturePointStatus::IPS_OUTLIER)   
+			return lastTraceStatus = ImmaturePointStatus::IPS_OOB;   //? 外点还有机会变回来???
 		else
 			return lastTraceStatus = ImmaturePointStatus::IPS_OUTLIER;
 	}
@@ -405,7 +405,7 @@ ImmaturePointStatus ImmaturePoint::traceOn(FrameHessian* frame,const Mat33f &hos
 //[ ***step 5*** ] 根据得到的最优位置重新计算逆深度的范围
 	// ============== set new interval ===================
 	//! u = (pr[0] + Kt[0]*idepth) / (pr[2] + Kt[2]*idepth) ==> idepth = (u*pr[2] - pr[0]) / (Kt[0] - u*Kt[2])
-	//! v = (pr[1] + Kt[1]*idepth) / (pr[2] + Kt[2]*idepth) ==> idepth = (v*pr[2] - pr[1]) / (Kt[1] - u*Kt[2])
+	//! v = (pr[1] + Kt[1]*idepth) / (pr[2] + Kt[2]*idepth) ==> idepth = (v*pr[2] - pr[1]) / (Kt[1] - v*Kt[2])
 	//* 取误差最大的
 	if(dx*dx>dy*dy)
 	{

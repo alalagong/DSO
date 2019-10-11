@@ -36,7 +36,7 @@ namespace dso
 
 const float minUseGrad_pixsel = 10;
 
-
+//@ 对于高层(0层以上)选择梯度最大的位置点
 template<int pot>
 inline int gridMaxSelection(Eigen::Vector3f* grads, bool* map_out, int w, int h, float THFac)
 {

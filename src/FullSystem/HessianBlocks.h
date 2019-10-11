@@ -96,9 +96,9 @@ struct FrameFramePrecalc
 	Vec2f PRE_aff_mode; // 能量函数对仿射系数处理后的, 总系数
 	float PRE_b0_mode; // host的光度仿射系数b
 
-	Vec3f PRE_tTll; // target和host之间优化后的平移 t
+	Vec3f PRE_tTll; //  host 到 target之间优化后的平移 t
 	Vec3f PRE_KtTll; // K*t
-	Vec3f PRE_tTll_0; // target和host之间初始的平移, 优化更新前
+	Vec3f PRE_tTll_0; //  host 到 target之间初始的平移, 优化更新前
 
 	float distanceLL; // 两帧间距离
 
@@ -179,7 +179,7 @@ struct FrameHessian
 
 
     inline Vec6 w2c_leftEps() const {return get_state_scaled().head<6>();}  //* 返回位姿状态增量
-    inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);} //* 返回光度仿射系数增量
+    inline AffLight aff_g2l() const {return AffLight(get_state_scaled()[6], get_state_scaled()[7]);} //* 返回光度仿射系数
     inline AffLight aff_g2l_0() const {return AffLight(get_state_zero()[6]*SCALE_A, get_state_zero()[7]*SCALE_B);} //* 返回线性化点处的仿射系数增量
 
 
@@ -282,20 +282,20 @@ struct FrameHessian
 			// 用位运算, 有点东西
 			if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) p.head<6>().setZero();
 
-			p[6] = setting_initialAffAPrior;
-			p[7] = setting_initialAffBPrior;
+			p[6] = setting_initialAffAPrior; // 1e14
+			p[7] = setting_initialAffBPrior; // 1e14
 		}
 		else //* 否则根据模式决定
 		{
 			if(setting_affineOptModeA < 0) //* 小于零是固定的不优化
 				p[6] = setting_initialAffAPrior;
 			else
-				p[6] = setting_affineOptModeA;
+				p[6] = setting_affineOptModeA;   // 1e12
 
 			if(setting_affineOptModeB < 0)
 				p[7] = setting_initialAffBPrior;
 			else
-				p[7] = setting_affineOptModeB;
+				p[7] = setting_affineOptModeB;  // 1e8
 		}
 		//? 8,9是干嘛的呢???  没用....
 		p[8] = setting_initialAffAPrior;

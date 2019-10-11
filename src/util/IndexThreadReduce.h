@@ -46,6 +46,7 @@ public:
 		nextIndex = 0;
 		maxIndex = 0;
 		stepSize = 1;
+		// 初始化, 未赋值不能使用
 		callPerIndex = boost::bind(&IndexThreadReduce::callPerIndexDefault, this, _1, _2, _3, _4);
 
 		running = true;

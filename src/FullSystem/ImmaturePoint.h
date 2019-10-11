@@ -49,7 +49,7 @@ enum ImmaturePointStatus {
 	IPS_OOB,					// OOB: end tracking & marginalize!
 	// 第一次残差大于阈值, 外点
 	IPS_OUTLIER,				// energy too high: if happens again: outlier!
-	// 搜索区间太短
+	// 搜索区间太短，但是没激活
 	IPS_SKIPPED,				// traced well and good (but not actually traced).
 	// 梯度和极线夹角太大
 	IPS_BADCONDITION,			// not traced because of bad condition.

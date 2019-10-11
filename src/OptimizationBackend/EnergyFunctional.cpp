@@ -171,7 +171,7 @@ EnergyFunctional::~EnergyFunctional()
 
 
 
-//@ 计算各种状态的增量
+//@ 计算各种状态的相对量的增量
 void EnergyFunctional::setDeltaF(CalibHessian* HCalib)
 {
 	if(adHTdeltaF != 0) delete[] adHTdeltaF;
@@ -687,7 +687,7 @@ void EnergyFunctional::marginalizePointsF()
 	}
 	MatXX M, Msc;
 	VecX Mb, Mbsc;
-	accSSE_top_A->stitchDouble(M,Mb,this,false,false); // 不加先验
+	accSSE_top_A->stitchDouble(M,Mb,this,false,false); // 不加先验, 在后面加了
 	accSSE_bot->stitchDouble(Msc,Mbsc,this);
 
 	resInM+= accSSE_top_A->nres[0];
@@ -779,7 +779,8 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 
 
 	// make Nullspaces matrix
-	MatXX N(ns[0].rows(), ns.size());
+	//! 7自由度不可观
+	MatXX N(ns[0].rows(), ns.size());  //! size (4+8*n)×7
 	for(unsigned int i=0;i<ns.size();i++)
 		N.col(i) = ns[i].normalized();
 
@@ -799,25 +800,11 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 	for(int i=0;i<SNN.size();i++)
 		{ if(SNN[i] > setting_solverModeDelta*maxSv) SNN[i] = 1.0 / SNN[i]; else SNN[i] = 0; } // 求逆
 
-	MatXX Npi = svdNN.matrixU() * SNN.asDiagonal() * svdNN.matrixV().transpose(); 	// [dim] x 9.
+	MatXX Npi = svdNN.matrixU() * SNN.asDiagonal() * svdNN.matrixV().transpose(); 	// [dim] x 7.
 	//! Npi.transpose()是N的伪逆
 	MatXX NNpiT = N*Npi.transpose(); 	// [dim] x [dim].
 	MatXX NNpiTS = 0.5*(NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
 	
-	// printf("******NNpiT************");
-	// for(int i=0; i<NNpiT.rows(); i++)
-	// for(int j=0; j<NNpiT.cols(); j++)
-	// {
-	// 	printf(" %f", NNpiT(i,j));
-	// }
-
-	// printf("******NNpiTS************");
-	// for(int i=0; i<NNpiTS.rows(); i++)
-	// for(int j=0; j<NNpiTS.cols(); j++)
-	// {
-	// 	printf(" %f", NNpiTS(i,j));
-	// }
-
 	//TODO 为什么这么做?
 	//* 把零空间从H和b中减去??? 以免乱飘?
 	if(b!=0) *b -= NNpiTS * *b;

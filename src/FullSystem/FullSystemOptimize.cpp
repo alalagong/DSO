@@ -57,7 +57,7 @@ void FullSystem::linearizeAll_Reductor(bool fixLinearization, std::vector<PointF
 		PointFrameResidual* r = activeResiduals[k];
 		(*stats)[0] += r->linearize(&Hcalib); // 线性化得到能量
 
-		if(fixLinearization) // 固定线性化
+		if(fixLinearization) // 固定线性化（优化后执行）
 		{
 			r->applyRes(true); // 把值给efResidual
 
@@ -682,10 +682,10 @@ std::vector<VecX> FullSystem::getNullspaces(
 		std::vector<VecX> &nullspaces_affA,
 		std::vector<VecX> &nullspaces_affB)
 {
-	nullspaces_pose.clear();
-	nullspaces_scale.clear();
-	nullspaces_affA.clear();
-	nullspaces_affB.clear();
+	nullspaces_pose.clear();  // size: 6; vec: 4+8*n
+	nullspaces_scale.clear(); // size: 1; 
+	nullspaces_affA.clear();  // size: 1
+	nullspaces_affB.clear();  // size: 1 
 
 
 	int n=CPARS+frameHessians.size()*8;

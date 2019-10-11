@@ -97,7 +97,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 	float b0 = precalc->PRE_b0_mode;		// 主帧的单独 b
 
 	
-	//! x=0时候求光度和几何的导数, 使用FEJ!! ,逆深度没有使用FEJ
+	//! x=0时候求几何的导数, 使用FEJ!! ,逆深度没有使用FEJ
 	Vec6f d_xi_x, d_xi_y;
 	Vec4f d_C_x, d_C_y;
 	float d_d_x, d_d_y;
@@ -212,6 +212,7 @@ double PointFrameResidual::linearize(CalibHessian* HCalib)
 
 
 		//* 残差对光度仿射a求导
+		//! 光度参数使用固定线性化点了
 		float drdA = (color[idx]-b0); 
 
 		if(!std::isfinite((float)hitColor[0]))

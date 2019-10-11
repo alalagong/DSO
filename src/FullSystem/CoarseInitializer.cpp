@@ -97,7 +97,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 	couplingWeight = 1;//*freeDebugParam5;
 
 //[ ***step 2*** ] 初始化每个点逆深度为1, 初始化光度参数, 位姿SE3
-	if(!snapped) //? 啥意思
+	if(!snapped) //! snapped应该指的是位移足够大了，不够大就重新优化
 	{
 		// 初始化
 		thisToNext.translation().setZero();
@@ -220,7 +220,7 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 //[ ***step 5.5*** ] 接受的话, 更新状态,; 不接受则增大lambda
 			if(accept)
 			{
-				//? 这是啥
+				//? 这是啥   答：应该是位移足够大，才开始优化IR
 				if(resNew[1] == alphaK*numPoints[lvl]) // 当 alphaEnergy > alphaK*npts
 					snapped = true;
 				H = H_new;
@@ -275,14 +275,14 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 	if(!snapped) snappedAt=0; 
 
 	if(snapped && snappedAt==0)
-		snappedAt = frameID;  // 我猜是尺度收敛的帧数
+		snappedAt = frameID;  // 位移足够的帧数
 
 
 
     debugPlot(0,wraps);
 
 
-	// 尺度收敛后, 再优化5帧才行
+	// 位移足够大, 再优化5帧才行
 	return snapped && frameID > snappedAt+5;
 }
 
@@ -494,7 +494,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 		{
 			E.updateSingle((float)(point->energy[0])); // 上一帧的加进来
 			point->isGood_new = false;
-			point->energy_new = point->energy; //上一帧的给新一帧的
+			point->energy_new = point->energy; //上一次的给当前次的
 			continue;
 		}
 
@@ -534,7 +534,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 
 
 
-//????? 这是在干吗???
+	//????? 这是在干吗???
 
 	// calculate alpha energy, and decide if we cap it.
 	Accumulator11 EAlpha;
@@ -544,16 +544,16 @@ Vec3f CoarseInitializer::calcResAndGS(
 		Pnt* point = ptsl+i;
 		if(!point->isGood_new) // 点不好用之前的
 		{
-			E.updateSingle((float)(point->energy[1])); //bug: 应该是 EAlpha 吧
+			E.updateSingle((float)(point->energy[1])); //! 又是故意这样写的，没用的代码
 		}
 		else
 		{
 			// 最开始初始化都是成1
 			point->energy_new[1] = (point->idepth_new-1)*(point->idepth_new-1);  //? 什么原理?
-			E.updateSingle((float)(point->energy_new[1])); //bug: 应该是 EAlpha 吧
+			E.updateSingle((float)(point->energy_new[1])); 
 		}
 	}
-	EAlpha.finish();   //bug: 这也没加进EAlpha啊, 
+	EAlpha.finish(); //! 只是计算位移是否足够大
 	float alphaEnergy = alphaW*(EAlpha.A + refToNew.translation().squaredNorm() * npts); // 平移越大, 越容易初始化成功?
 
 	//printf("AE = %f * %f + %f\n", alphaW, EAlpha.A, refToNew.translation().squaredNorm() * npts);
@@ -592,7 +592,7 @@ Vec3f CoarseInitializer::calcResAndGS(
 			JbBuffer_new[i][9] += couplingWeight;
 		}
 
-		JbBuffer_new[i][9] = 1/(1+JbBuffer_new[i][9]);  // 取逆
+		JbBuffer_new[i][9] = 1/(1+JbBuffer_new[i][9]);  // 取逆是协方差，做权重
 		//* 9做权重, 计算的是舒尔补项!
 		//! dp*dd*(dd^2)^-1*dd*dp
 		acc9SC.updateSingleWeighted(
@@ -631,27 +631,27 @@ Vec3f CoarseInitializer::calcResAndGS(
 float CoarseInitializer::rescale()
 {
 	float factor = 20*thisToNext.translation().norm();
-//	float factori = 1.0f/factor;
-//	float factori2 = factori*factori;
-//
-//	for(int lvl=0;lvl<pyrLevelsUsed;lvl++)
-//	{
-//		int npts = numPoints[lvl];
-//		Pnt* ptsl = points[lvl];
-//		for(int i=0;i<npts;i++)
-//		{
-//			ptsl[i].iR *= factor;
-//			ptsl[i].idepth_new *= factor;
-//			ptsl[i].lastHessian *= factori2;
-//		}
-//	}
-//	thisToNext.translation() *= factori;
+	//	float factori = 1.0f/factor;
+	//	float factori2 = factori*factori;
+	//
+	//	for(int lvl=0;lvl<pyrLevelsUsed;lvl++)
+	//	{
+	//		int npts = numPoints[lvl];
+	//		Pnt* ptsl = points[lvl];
+	//		for(int i=0;i<npts;i++)
+	//		{
+	//			ptsl[i].iR *= factor;
+	//			ptsl[i].idepth_new *= factor;
+	//			ptsl[i].lastHessian *= factori2;
+	//		}
+	//	}
+	//	thisToNext.translation() *= factori;
 
 	return factor;
 }
 
 //* 计算旧的和新的逆深度与iR的差值, 返回旧的差, 新的差, 数目
-//? iR到底是啥呢
+//? iR到底是啥呢     答：IR是逆深度的均值，尺度收敛到IR
 Vec3f CoarseInitializer::calcEC(int lvl)
 {
 	if(!snapped) return Vec3f(0,0,numPoints[lvl]);
@@ -680,7 +680,7 @@ void CoarseInitializer::optReg(int lvl)
 	int npts = numPoints[lvl];
 	Pnt* ptsl = points[lvl];
 	
-	//* 尺度未收敛则, 设置iR是1
+	//* 位移不足够则设置iR是1
 	if(!snapped)
 	{
 		for(int i=0;i<npts;i++)
@@ -735,7 +735,7 @@ void CoarseInitializer::propagateUp(int srcLvl)
 		parent->iR=0;
 		parent->iRSumNum=0;
 	}
-
+	//* 更新在上一层的parent
 	for(int i=0;i<nptss;i++)
 	{
 		Pnt* point = ptss+i;
@@ -756,7 +756,7 @@ void CoarseInitializer::propagateUp(int srcLvl)
 		}
 	}
 
-	optReg(srcLvl+1);
+	optReg(srcLvl+1); // 使用附近的点来更新IR和逆深度
 }
 
 //@ 使用上层信息来初始化下层
@@ -776,7 +776,7 @@ void CoarseInitializer::propagateDown(int srcLvl)
 		Pnt* point = ptst+i;  // 遍历当前层的点
 		Pnt* parent = ptss+point->parent;  // 找到当前点的parrent
 
-		if(!parent->isGood || parent->lastHessian < 0.1) continue; //? 父点不好, lastHessian是啥
+		if(!parent->isGood || parent->lastHessian < 0.1) continue;
 		if(!point->isGood)
 		{
 			// 当前点不好, 则把父点的值直接给它, 并且置位good
@@ -885,9 +885,8 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 					sumGrad2 += absgrad;
 				}
 
-//				float gth = setting_outlierTH * (sqrtf(sumGrad2)+setting_outlierTHSumComponent);
-//				pl[nl].outlierTH = patternNum*gth*gth;
-//
+			// float gth = setting_outlierTH * (sqrtf(sumGrad2)+setting_outlierTHSumComponent);
+			// pl[nl].outlierTH = patternNum*gth*gth;
 				//! 外点的阈值与pattern的大小有关, 一个像素是12*12
 				//? 这个阈值怎么确定的...
 				pl[nl].outlierTH = patternNum*setting_outlierTH;
@@ -908,7 +907,7 @@ void CoarseInitializer::setFirst(	CalibHessian* HCalib, FrameHessian* newFrameHe
 	makeNN();
 
 	// 参数初始化
-	//? 具体什么用处???
+
 	thisToNext=SE3();
 	snapped = false;
 	frameID = snappedAt = 0;

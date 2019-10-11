@@ -82,6 +82,7 @@ void EFPoint::takeData()
 	priorF = data->hasDepthPrior ? setting_idepthFixPrior*SCALE_IDEPTH*SCALE_IDEPTH : 0;
 	if(setting_solverMode & SOLVER_REMOVE_POSEPRIOR) priorF=0;
 
+	//TODO 每次都更新线性化点，这不一直是零？？
 	deltaF = data->idepth - data->idepth_zero; // 当前状态逆深度减去线性化处
 }
 
@@ -111,8 +112,11 @@ void EFResidual::fixLinearizationF(EnergyFunctional* ef)
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JabF))+i),delta_a));
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JabF+1))+i),delta_b));
 		_mm_store_ps(((float*)&res_toZeroF)+i, rtz); // 存储在res_toZeroF
+		if(res_toZeroF[i] > J->resF[i])
+			printf("true");
 	}
 
+	// std::cout<<"resF: "<<J->resF<<" ||   res_toZeroF "<<res_toZeroF<<std::endl;
 	isLinearized = true;
 }
 

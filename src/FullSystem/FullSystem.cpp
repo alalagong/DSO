@@ -770,7 +770,7 @@ void FullSystem::flagPointsForRemoval()
 			else if(ph->isOOB(fhsToKeepPoints, fhsToMargPoints) || host->flaggedForMarginalization)
 			{
 				flag_oob++;
-				//* 如果是一个内点, 则把残差在当前状态线性化, 并计算残差
+				//* 如果是一个内点, 则把残差在当前状态线性化, 并计算到零点残差
 				if(ph->isInlierNew())
 				{
 					flag_in++;
@@ -1095,7 +1095,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 //[ ***step 1*** ] 设置当前估计的fh的位姿, 光度参数
 	// needs to be set by mapping thread
 	{	// 同样取出位姿, 当前的作为最终值
-		//? 为啥要从shell来设置 ???
+		//? 为啥要从shell来设置 ???   答: 因为shell不删除, 而且参考帧还会被优化, shell是桥梁
 		boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 		assert(fh->shell->trackingRef != 0);
 		fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
@@ -1109,7 +1109,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 
 //[ ***step 3*** ] 选择要边缘化掉的帧
 	// =========================== Flag Frames to be Marginalized. =========================
-	flagFramesForMarginalization(fh);
+	flagFramesForMarginalization(fh);  // TODO 这里没用最新帧，可以改进下
 
 //[ ***step 4*** ] 加入到关键帧序列
 	// =========================== add New Frame to Hessian Struct. =========================

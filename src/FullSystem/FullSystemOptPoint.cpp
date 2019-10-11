@@ -52,11 +52,11 @@ PointHessian* FullSystem::optimizeImmaturePoint(
 		ImmaturePoint* point, int minObs,
 		ImmaturePointTemporaryResidual* residuals)
 {
-//[ ***step 1*** ] 初始化和其它关键帧的res
+//[ ***step 1*** ] 初始化和其它关键帧的res(点在其它关键帧上投影)
 	int nres = 0;
 	for(FrameHessian* fh : frameHessians)
 	{
-		if(fh != point->host)
+		if(fh != point->host)  // 没有创建和自己的
 		{
 			residuals[nres].state_NewEnergy = residuals[nres].state_energy = 0;
 			residuals[nres].state_NewState = ResState::OUTLIER;
