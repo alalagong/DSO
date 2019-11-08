@@ -81,6 +81,8 @@ void FrameHessian::setStateZero(const Vec10 &state_zero)
 
 	//! 感觉这个nullspaces_pose就是 Adj_T
 	//! Exp(Adj_T*zeta)=T*Exp(zeta)*T^{-1}
+	// 全局转为局部的，左乘边右乘
+	//! T_c_w * delta_T_g * T_c_w_inv = delta_T_l
 	//TODO 这个是数值求导的方法么???
 	for(int i=0;i<6;i++)
 	{
