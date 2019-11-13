@@ -66,10 +66,10 @@ void AccumulatedTopHessianSSE::addPoint(EFPoint* p, EnergyFunctional const * con
 			if(!r->isActive()) continue;
 			assert(r->isLinearized);
 		}
-		if(mode == 1)
-		{
-			printf("yeah I'm IN !");
-		}
+		// if(mode == 1)
+		// {
+		// 	printf("yeah I'm IN !");
+		// }
 
 		RawResidualJacobian* rJ = r->J; // 导数
 		//* ID 来控制不同帧之间的变量, 区分出相同两帧 但是host target角色互换的

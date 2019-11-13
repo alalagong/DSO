@@ -112,8 +112,8 @@ void EFResidual::fixLinearizationF(EnergyFunctional* ef)
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JabF))+i),delta_a));
 		rtz = _mm_sub_ps(rtz,_mm_mul_ps(_mm_load_ps(((float*)(J->JabF+1))+i),delta_b));
 		_mm_store_ps(((float*)&res_toZeroF)+i, rtz); // 存储在res_toZeroF
-		if(res_toZeroF[i] > J->resF[i])
-			printf("true");
+		// if(res_toZeroF[i] > J->resF[i])
+			// printf("true");
 	}
 
 	// std::cout<<"resF: "<<J->resF<<" ||   res_toZeroF "<<res_toZeroF<<std::endl;

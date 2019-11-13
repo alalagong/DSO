@@ -708,7 +708,7 @@ void EnergyFunctional::marginalizePointsF()
 
 	}
 	
-	//! 给边缘化的量加了个权重
+	//! 给边缘化的量加了个权重，不准确的线性化
 	HM += setting_margWeightFac*H;  //* 所以边缘化的部分直接加在HM bM了
 	bM += setting_margWeightFac*b;
 
@@ -805,11 +805,48 @@ void EnergyFunctional::orthogonalize(VecX* b, MatXX* H)
 	MatXX NNpiT = N*Npi.transpose(); 	// [dim] x [dim].
 	MatXX NNpiTS = 0.5*(NNpiT + NNpiT.transpose());	// = N * (N' * N)^-1 * N'.
 	
+//*****************add by gong********************
+	// std::vector<VecX> ns;
+	// ns.insert(ns.end(), lastNullspaces_pose.begin(), lastNullspaces_pose.end());
+	// ns.insert(ns.end(), lastNullspaces_scale.begin(), lastNullspaces_scale.end());
+	std::cout<<"//=====================Test null space start=====================/ "<<std::endl;
+	// make Nullspaces matrix
+	//! 7自由度不可观
+	// MatXX N(ns[0].rows(), ns.size());  //! size (4+8*n)×7
+	// for(unsigned int i=0;i<ns.size();i++)
+	// 	N.col(i) = ns[i].normalized();
+
+	VecX zero_x = *b;
+
+	// MatXX zero = (lastHS) * zero_x;
+	for(int i=0; i<zero_x.cols(); i++)
+	{
+		VecX xHx = 0.5 * zero_x.col(i).transpose() *  lastHS *  zero_x.col(i);
+		VecX xb =  zero_x.col(i).transpose() * lastbS;
+
+		std::cout<<"Before nullspace process "<< i<< " : " << xHx << " + "<< xb << std::endl;
+	}
+	
+	// std::cout<<"//=====================Test null space start=====================/ "<<std::endl;
+	// std::cout<<"HA_top * nullspace matrix = " << zero << std::endl;
+	// std::cout<<"//=====================Test null space end=====================/ "<<std::endl;
+
+	
+
 	//TODO 为什么这么做?
 	//* 把零空间从H和b中减去??? 以免乱飘?
 	if(b!=0) *b -= NNpiTS * *b;
 	if(H!=0) *H -= NNpiTS * *H * NNpiTS;
 
+	zero_x = *b;
+	for(int i=0; i<zero_x.cols(); i++)
+	{
+		VecX xHx = 0.5 * zero_x.col(i).transpose() *  lastHS *  zero_x.col(i);
+		VecX xb =  zero_x.col(i).transpose() * lastbS;
+
+		std::cout<<"After nullspace process "<< i<< " : " << xHx << " + "<< xb << std::endl;
+	}
+	std::cout<<"//=====================Test null space end=====================/ "<<std::endl;
 
 	//	std::cout << std::setprecision(16) << "Orth SV: " << SNN.reverse().transpose() << "\n";
 
@@ -841,7 +878,9 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 	accumulateLF_MT(HL_top, bL_top,multiThreading);  // 计算的是之前计算过得
 		// p->Hdd_accLF = 0;
 		// p->bd_accLF = 0;
-		// p->Hcd_accLF = ;
+		// p->Hcd_accLF =0 ;
+
+
 
 	//* 关于逆深度的Schur部分
 	accumulateSCF_MT(H_sc, b_sc,multiThreading);
@@ -918,13 +957,13 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 
 		lastHS = HFinal_top - H_sc;
 		lastbS = bFinal_top;
+
 		
 		//* 而这个就是阻尼加在了整个Hessian上
 		//? 为什么呢, 是因为减去了零空间么  ??
 		for(int i=0;i<8*nFrames+CPARS;i++) HFinal_top(i,i) *= (1+lambda);
 		HFinal_top -= H_sc * (1.0f/(1+lambda)); // 因为Schur里面有个对角线的逆, 所以是倒数
 	}
-
 
 
 
@@ -972,12 +1011,18 @@ void EnergyFunctional::solveSystemF(int iteration, double lambda, CalibHessian* 
 		x = SVecI.asDiagonal() * HFinalScaled.ldlt().solve(SVecI.asDiagonal() * bFinal_top);//  SVec.asDiagonal() * svd.matrixV() * Ub;
 	}
 
-
 //[ ***step 4*** ] 如果设置的是直接对解进行处理, 直接去掉解x中的零空间
 	if((setting_solverMode & SOLVER_ORTHOGONALIZE_X) || (iteration >= 2 && (setting_solverMode & SOLVER_ORTHOGONALIZE_X_LATER)))
 	{
 		VecX xOld = x;
 		orthogonalize(&x, 0);
+		// //********************* check nullspace added by gong ***********************
+		// VecX new_b = HA_top * x;
+		// VecX old_b = HA_top * xOld;
+		// std::cout<<"//=====================Test null space start=====================/ "<<std::endl;
+		// std::cout<<"new_b - old_b: "<< (new_b - old_b).transpose() << std::endl;
+		// // xHx
+		// std::cout<<"//=====================Test null space end=====================/ "<<std::endl;
 	}
 
 

@@ -211,7 +211,7 @@ struct FrameHessian
 		state[7] = SCALE_B_INVERSE * state_scaled[7];
 		state[8] = SCALE_A_INVERSE * state_scaled[8];
 		state[9] = SCALE_B_INVERSE * state_scaled[9];
-
+		
 		PRE_worldToCam = SE3::exp(w2c_leftEps()) * get_worldToCam_evalPT();
 		PRE_camToWorld = PRE_worldToCam.inverse();
 		//setCurrentNullspace();
